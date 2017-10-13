@@ -8,7 +8,6 @@ exp_hps['test_SimpleAGCN'] = {
     'max_hop_K': 2,
     'batch_size': 256,
     'n_epoch': 20,
-    'raw_feature_number': 75,
     'learning_rate': 0.001,
     'n_filters': 64,
     'final_feature_n': 256,

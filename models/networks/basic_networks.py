@@ -64,7 +64,7 @@ class SimpleAGCN(Network):
     def construct_network(self):
         tf.set_random_seed(self.seed)
 
-        n_features = self.hyper_parameters['raw_feature_number']
+        n_features = self.data['train'].get_raw_feature_n()
         batch_size = self.hyper_parameters['batch_size']
         K = self.hyper_parameters['max_hop_K']
         n_filters = self.hyper_parameters['n_filters']  # SGL_LL output dimensions

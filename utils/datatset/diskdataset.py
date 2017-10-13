@@ -177,6 +177,11 @@ class DiskDataset(Dataset):
             0]
         return np.shape(sample_X)
 
+    def get_raw_feature_n(self):
+        sample_X = load_from_disk(
+            os.path.join(self.data_dir, next(self.metadata_df.iterrows())[1]['X']))[0]
+        return int(sample_X.n_feat)
+
     def get_shard_size(self):
         """Gets size of shards on disk."""
         if not len(self.metadata_df):
