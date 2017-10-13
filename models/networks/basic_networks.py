@@ -48,7 +48,7 @@ class Network(object):
     def train(self):
         raise NotImplementedError
 
-    def evaluate(self):
+    def final_evaluate(self):
         raise NotImplementedError
 
 
@@ -56,10 +56,10 @@ class SimpleAGCN(Network):
     """
     A simple example of AGCN
     """
-    def __init__(self,
-                 **kwargs):
-        super(SimpleAGCN, self).__init__(**kwargs)
-        self.model_name = 'SimpleAGCN'
+    # def __init__(self,
+    #              **kwargs):
+    #     super(SimpleAGCN, self).__init__(**kwargs)
+    #     self.model_name = 'SimpleAGCN'
 
     def construct_network(self):
         tf.set_random_seed(self.seed)
@@ -72,7 +72,6 @@ class SimpleAGCN(Network):
         learning_rate = self.hyper_parameters['learning_rate']
         beta1 = self.hyper_parameters['optimizer_beta1']
         beta2 = self.hyper_parameters['optimizer_beta2']
-        Mol_batch = self.hyper_parameters['Mol_batch']
         optimizer_type = self.hyper_parameters['optimizer_type']
 
         """ Network Architecture - 7 layers"""
@@ -95,8 +94,8 @@ class SimpleAGCN(Network):
             optimizer_type=optimizer_type,
             beta1=beta1,
             beta2=beta2,
-            Mol_batch=Mol_batch,
-            n_feature=final_feature_n)
+            n_feature=final_feature_n
+        )
 
     def train(self):
         assert self.graph_model is not None
@@ -113,14 +112,21 @@ class SimpleAGCN(Network):
         self.outputs['losses'] = losses_curve
         self.outputs['score_curve'] = score_curve
 
-    def evaluate(self):
-        valid_scores = dict()
+    def final_evaluate(self):
+        # run and record the classifier's evaluation
+        valid_scores, test_scores = dict(), dict()
         valid_scores[self.model_name] = self.classifier.evaluate(
                                                         self.data['validation'],
                                                         self.metrics,
                                                         self.transformers)
 
-        return valid_scores
+        test_scores[self.model_name] = self.classifier.evaluate(
+                                                        self.data['testing'],
+                                                        self.metrics,
+                                                        self.transformers)
+
+        self.outputs['final_score_validation'] = valid_scores
+        self.outputs['final_score_testing'] = test_scores
 
     def get_output(self):
         return self.outputs

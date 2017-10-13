@@ -14,6 +14,7 @@ from AGCN.utils.save import log
 from AGCN.models.tf_modules.basic_model import Model
 from AGCN.models.operators import model_operatos as model_ops
 from AGCN.models.tf_modules.graph_topology import merge_dicts
+from AGCN.models.tf_modules.evaluation import Evaluator
 
 
 def get_loss_fn(final_loss):
@@ -65,17 +66,17 @@ class MultitaskGraphClassifier(Model):
                  beta2=.999,
                  pad_batches=True,
                  verbose=True,
-                 Mol_batch=False,
                  n_feature=128):
 
         self.verbose = verbose
         self.n_tasks = n_tasks
         self.final_loss = final_loss
         self.model = model
-        self.Mol_batch = Mol_batch
+
         config = tf.ConfigProto(allow_soft_placement=True)
         config.gpu_options.allow_growth = True
         self.sess = tf.Session(graph=self.model.graph, config=config)
+
         if logdir is not None:
             if not os.path.exists(logdir):
                 os.makedirs(logdir)
@@ -341,3 +342,36 @@ class MultitaskGraphClassifier(Model):
                 X_out[start:start + increment] = X_b[:increment]
                 start += increment
             return X_out
+
+    def evaluate(self, dataset, metrics, transformers=[], per_task_metrics=False):
+        """
+        Evaluates the performance of this model on specified dataset.
+
+        Parameters
+        ----------
+        dataset: dc.data.Dataset
+          Dataset object.
+        metrics: deepchem.metrics.Metric
+          Evaluation metric
+        transformers: list
+          List of deepchem.transformers.Transformer
+        per_task_metrics: bool
+          If True, return per-task scores.
+
+        Returns
+        -------
+        dict
+          Maps tasks to scores under metric.
+        """
+        if not isinstance(metrics, list):
+            metrics = [metrics]
+
+        evaluator = Evaluator(self, dataset, transformers)
+
+        if not per_task_metrics:
+            scores = evaluator.compute_model_performance(metrics)
+            return scores
+        else:
+            scores, per_task_scores = evaluator.compute_model_performance(
+                metrics, per_task_metrics=per_task_metrics)
+            return scores, per_task_scores

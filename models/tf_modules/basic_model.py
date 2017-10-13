@@ -4,7 +4,6 @@ import tempfile
 
 from AGCN.utils.save import log
 from AGCN.utils.transformer.transformers import undo_transforms
-from AGCN.models.tf_modules.evaluation import Evaluator
 
 
 class Model(object):
@@ -180,38 +179,6 @@ class Model(object):
         """
         raise NotImplementedError
 
-    def evaluate(self, dataset, metrics, transformers=[], per_task_metrics=False):
-        """
-        Evaluates the performance of this model on specified dataset.
-
-        Parameters
-        ----------
-        dataset: dc.data.Dataset
-          Dataset object.
-        metrics: deepchem.metrics.Metric
-          Evaluation metric
-        transformers: list
-          List of deepchem.transformers.Transformer
-        per_task_metrics: bool
-          If True, return per-task scores.
-
-        Returns
-        -------
-        dict
-          Maps tasks to scores under metric.
-        """
-        if not isinstance(metrics, list):
-            metrics = [metrics]
-
-        evaluator = Evaluator(self, dataset, transformers)
-
-        if not per_task_metrics:
-            scores = evaluator.compute_model_performance(metrics)
-            return scores
-        else:
-            scores, per_task_scores = evaluator.compute_model_performance(
-                metrics, per_task_metrics=per_task_metrics)
-            return scores, per_task_scores
 
     # def find_L(self, L_dict, smiles, mols):
     #     if L_dict is None:

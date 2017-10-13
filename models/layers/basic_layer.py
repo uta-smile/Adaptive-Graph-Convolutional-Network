@@ -2,10 +2,10 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import unicode_literals
 
-import tensorflow as tf
 
 from AGCN.models.operators import model_operatos as model_ops
 from AGCN.models.operators import initializations
+import tensorflow as tf
 
 
 class Layer(object):
