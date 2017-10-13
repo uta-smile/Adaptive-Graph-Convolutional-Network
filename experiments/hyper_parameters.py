@@ -5,14 +5,18 @@ hyper parameters preset for each experiments
 exp_hps = dict()
 
 exp_hps['test_SimpleAGCN'] = {
-    'number_hop_max': 2,
+    'max_hop_K': 2,
     'batch_size': 256,
-    'nb_epoch': 100,
+    'n_epoch': 20,
+    'raw_feature_number': 75,
     'learning_rate': 0.001,
     'n_filters': 64,
-    'n_fully_connected_nodes': 256,
+    'final_feature_n': 256,
     'seed': 123,
-    'n_support': 1
+    'n_support': 1,
+    'optimizer_beta1': 0.9,
+    'optimizer_beta2': 0.999,
+    'optimizer_type': 'adam'
 }
 
 exp_hps['gcn_BI'] = {
