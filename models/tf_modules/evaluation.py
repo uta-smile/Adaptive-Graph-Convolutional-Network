@@ -62,6 +62,7 @@ class Evaluator(object):
         else:
             y_pred = self.model.predict(self.dataset, self.output_transformers)
             y_pred_print = y_pred
+
         multitask_scores = {}
         all_task_scores = {}
 
@@ -108,7 +109,7 @@ class Evaluator(object):
         n_tasks = len(self.task_names)
         y_preds = np.reshape(y_preds, (len(y_preds), n_tasks))
         assert len(y_preds) == len(mol_ids)
-        with open(csv_out, "w") as csvfile:
+        with open(csv_out, "wb") as csvfile:
             csvwriter = csv.writer(csvfile)
             csvwriter.writerow(["Compound"] + self.dataset.get_task_names())
             for mol_id, y_pred in zip(mol_ids, y_preds):

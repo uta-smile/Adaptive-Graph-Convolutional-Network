@@ -203,7 +203,7 @@ class MultitaskGraphClassifier(Model):
             train_data,
             val_data,
             nb_epoch,
-            metric=None,
+            metrics=None,
             transformers=None,
             max_checkpoints_to_keep=5,
             log_every_N_batches=50):
@@ -223,7 +223,8 @@ class MultitaskGraphClassifier(Model):
             self.sess.run(self.init_fn)
 
             loss_curve = []
-            scores_curves = []
+            scores_curves = {metric.name: [] for metric in metrics}  # multiple metrics, task-averaged scores
+
             with self.sess.as_default():
                 for epoch in range(nb_epoch):
                     log("Starting epoch %d" % epoch, self.verbose)
@@ -248,9 +249,9 @@ class MultitaskGraphClassifier(Model):
                         self.watch_batch(X_b, ids_b, L_update)
 
                     if epoch % 5 == 0:
-                        scores = self.evaluate(val_data, metric, transformers)
-                        print ("average task AUC:{}".format(scores))
-                        scores_curves.append(scores.values()[0])
+                        scores = self.evaluate(val_data, metrics, transformers)
+                        for metric in metrics:
+                            scores_curves[metric.name].append(scores[metric.name])
 
         return loss_curve, scores_curves
 
@@ -369,6 +370,7 @@ class MultitaskGraphClassifier(Model):
         evaluator = Evaluator(self, dataset, transformers)
 
         if not per_task_metrics:
+            # only task-averaged scores, dict format
             scores = evaluator.compute_model_performance(metrics)
             return scores
         else:

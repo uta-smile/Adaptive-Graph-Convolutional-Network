@@ -1,8 +1,8 @@
 """
 create a demo experiment using SimpleAGCN network on Tox21 data.
 
-1. data - train, valid, test, transformer, max_atom
-2. network - defined in models/networks folder.
+1. data - Tox21
+2. network - SimpleAGCN.
 """
 
 import numpy as np
@@ -11,11 +11,8 @@ from AGCN.models.networks import SimpleAGCN
 from AGCN.utils.data_loader import SMILESLoader
 from AGCN.experiments.dataloader_configs import loaderconfig_dict
 from AGCN.experiments.hyper_parameters import exp_hps
-from AGCN.experiments.metrics import Metric, roc_auc_score, precision_score, recall_score
+from AGCN.models.tf_modules.metrics import Metric, roc_auc_score, precision_score, recall_score
 
-
-hyper_parameters = exp_hps['test_SimpleAGCN']
-print("Hyper-parameter Loaded!  \n")
 
 # create data loader
 tox21_loader = loaderconfig_dict['tox21']
@@ -42,6 +39,10 @@ metrics = [
 ]
 print("Metrics Loaded! \n")
 
+# load hyper-parameters
+hyper_parameters = exp_hps['test_SimpleAGCN']
+print("Hyper-parameter Loaded!  \n")
+
 
 # create network
 network = SimpleAGCN(train_data,
@@ -52,9 +53,11 @@ network = SimpleAGCN(train_data,
                      hyper_parameters,
                      transformers,
                      metrics)
-print("Network Created Successfully! \n")
-print("Start Training ...... \n\n")
+
 network.train()
+network.final_evaluate()
+network.plot_loss_curve()
+network.plot_score_curves('task_averaged-precision_score')
 
 
 

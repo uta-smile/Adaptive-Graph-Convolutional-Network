@@ -1,21 +1,25 @@
 """
 hyper parameters preset for each experiments
 """
+import os
 
 exp_hps = dict()
 
 exp_hps['test_SimpleAGCN'] = {
     'max_hop_K': 2,
     'batch_size': 256,
-    'n_epoch': 20,
-    'learning_rate': 0.001,
+    'n_epoch': 50,
+    'learning_rate': 0.002,
     'n_filters': 64,
     'final_feature_n': 256,
     'seed': 123,
     'n_support': 1,
     'optimizer_beta1': 0.9,
     'optimizer_beta2': 0.999,
-    'optimizer_type': 'adam'
+    'optimizer_type': 'adam',
+    'save_dir': os.path.join(os.environ["HOME"], 'AGCN/AGCN/experiments/results'),
+    'model_name': 'SimpleAGCN',
+    'data_name': 'Tox21'
 }
 
 exp_hps['gcn_BI'] = {

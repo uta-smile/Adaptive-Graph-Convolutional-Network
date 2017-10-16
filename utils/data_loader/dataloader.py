@@ -60,12 +60,14 @@ class DataLoader(object):
         else:
             self.id_field = id_field
 
-        "define feature extractor"
+        "define feature extractor. if feature = None, it is image, pointcloud, no need for featurizer"
         self.feature = feature  # feature type -> featurizer function
         if self.feature == 'ECFP':
             self.Featurizer = CircularFingerprint(size=1024)
         elif self.feature == 'MolGraph':
             self.Featurizer = ConvMolFeaturizer()
+        else:
+            self.Featurizer = None
 
         "define splitter"
         self.splitter = splitter
