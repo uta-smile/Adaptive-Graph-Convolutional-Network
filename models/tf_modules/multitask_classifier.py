@@ -101,8 +101,8 @@ class MultitaskGraphClassifier(Model):
             self.loss_op = self.add_training_loss(self.final_loss, self.logits)     # fit
             self.outputs = self.add_softmax(self.logits)    # predict
 
-            "L_set give the tensor of updated Laplacian of each convolutional layer in model"
-            if type(self.model).__name__ in ['SequentialGraphMol']:
+            "L_set give the tensor of updated Laplacian of each convolution layer in model"
+            if type(self.model).__name__ in ['SequentialGraphMol', 'ResidualGraphMol']:
                 self.L_op = self.model.return_L_set()
             else:
                 self.L_op = None
@@ -258,7 +258,7 @@ class MultitaskGraphClassifier(Model):
     def watch_batch(self, X_b, ids_b, L_update):
         # visualize the intrinsic Laplacian and residual Laplacian updated during training
         """watch on specific group of samples, each epoch display once"""
-        print ("starting visualizing")
+        # print ("starting visualizing")
 
     def save(self):
         """

@@ -25,7 +25,7 @@ class Network(object):
                  transformers,
                  metrics,
                  seed=123,
-                 save_fig=False,
+                 save_fig=True,
                  ):
 
         self.data = {'train': train_data, 'validation': valid_data, 'testing': test_data}
@@ -95,11 +95,11 @@ class SimpleAGCN(Network):
         """ Network Architecture - 7 layers"""
         self.graph_model = SequentialGraphMol(n_features, batch_size, self.max_atom)
         self.graph_model.add(SGC_LL(n_filters, n_features, batch_size, K=K, activation='relu'))
-        self.graph_model.add(GraphPoolMol(batch_size))
+        # self.graph_model.add(GraphPoolMol(batch_size))
         self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
-        self.graph_model.add(GraphPoolMol(batch_size))
+        # self.graph_model.add(GraphPoolMol(batch_size))
         self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
-        self.graph_model.add(GraphPoolMol(batch_size))
+        # self.graph_model.add(GraphPoolMol(batch_size))
         self.graph_model.add(DenseMol(final_feature_n, n_filters, activation='relu'))
         self.graph_model.add(GraphGatherMol(batch_size, activation="tanh"))
 

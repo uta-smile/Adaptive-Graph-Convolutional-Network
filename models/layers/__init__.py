@@ -6,3 +6,4 @@ from AGCN.models.layers.dropout import Dropout
 from AGCN.models.layers.graphconv import SGC_LL
 from AGCN.models.layers.graphgather import GraphGatherMol
 from AGCN.models.layers.graphpool import GraphPoolMol
+from AGCN.models.layers.blockend import BlockEnd

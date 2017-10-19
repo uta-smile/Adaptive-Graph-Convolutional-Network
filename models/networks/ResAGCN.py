@@ -6,8 +6,8 @@ from __future__ import unicode_literals
 import tensorflow as tf
 
 from AGCN.models.networks.basic_networks import SimpleAGCN
-from AGCN.models.tf_modules.tf_graphs import SequentialGraphMol
-from AGCN.models.layers import DenseMol, SGC_LL, GraphGatherMol, GraphPoolMol
+from AGCN.models.tf_modules.tf_graphs import ResidualGraphMol
+from AGCN.models.layers import DenseMol, SGC_LL, GraphGatherMol, GraphPoolMol, BlockEnd
 from AGCN.models.tf_modules.multitask_classifier import MultitaskGraphClassifier
 
 
@@ -25,14 +25,16 @@ class ResAGCN(SimpleAGCN):
         beta2 = self.hyper_parameters['optimizer_beta2']
         optimizer_type = self.hyper_parameters['optimizer_type']
 
-        """ Residual Network Architecture - 7 layers"""
-        self.graph_model = SequentialGraphMol(n_features, batch_size, self.max_atom)
+        """ Residual Network Architecture - 2 residual blocks"""
+        self.graph_model = ResidualGraphMol(n_features, batch_size, self.max_atom)
+        """ block start """
         self.graph_model.add(SGC_LL(n_filters, n_features, batch_size, K=K, activation='relu'))
-        self.graph_model.add(GraphPoolMol(batch_size))
         self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
-        self.graph_model.add(GraphPoolMol(batch_size))
+        self.graph_model.add(BlockEnd(self.max_atom, batch_size))
+        """ block end """
         self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
-        self.graph_model.add(GraphPoolMol(batch_size))
+        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
+        self.graph_model.add(BlockEnd(self.max_atom, batch_size))
         self.graph_model.add(DenseMol(final_feature_n, n_filters, activation='relu'))
         self.graph_model.add(GraphGatherMol(batch_size, activation="tanh"))
 

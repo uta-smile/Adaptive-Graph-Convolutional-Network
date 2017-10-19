@@ -157,3 +157,6 @@ class GraphTopologyMol(object):
 
     def get_atom_features_placeholder(self):
         return self.atom_features_placeholder
+
+    def get_laplacians_placeholder(self):
+        return self.Laplacian_placeholder

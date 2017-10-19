@@ -46,13 +46,8 @@ class SGC_LL(Layer):
 
         self.batch_size = batch_size
         self.sparse_inputs = True
-        # self.featureless = featureless
-        # self.bias = bias
         self.nb_filter = output_dim
         self.n_atom_feature = input_dim
-        # self.max_deg = max_deg
-        # self.min_deg = min_deg
-        # self.nb_affine = 2 * max_deg + (1 - min_deg)
         self.vars = {}
         self.bias = True
         self.K = K
