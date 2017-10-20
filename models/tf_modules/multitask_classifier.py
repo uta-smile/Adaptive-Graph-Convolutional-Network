@@ -102,7 +102,7 @@ class MultitaskGraphClassifier(Model):
             self.outputs = self.add_softmax(self.logits)    # predict
 
             "L_set give the tensor of updated Laplacian of each convolution layer in model"
-            if type(self.model).__name__ in ['SequentialGraphMol', 'ResidualGraphMol']:
+            if type(self.model).__name__ in ['SequentialGraphMol', 'ResidualGraphMol', 'DenseConnectedGraph']:
                 self.L_op = self.model.return_L_set()
             else:
                 self.L_op = None

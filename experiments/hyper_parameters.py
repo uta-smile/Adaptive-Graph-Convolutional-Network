@@ -26,9 +26,9 @@ exp_hps['test_ResAGCN'] = {
     'max_hop_K': 2,
     'batch_size': 256,
     'n_epoch': 50,
-    'learning_rate': 0.005,
-    'n_filters': 128,
-    'final_feature_n': 512,
+    'learning_rate': 0.0005,
+    'n_filters': 64,
+    'final_feature_n': 256,
     'seed': 123,
     'n_support': 1,
     'optimizer_beta1': 0.9,
@@ -36,6 +36,23 @@ exp_hps['test_ResAGCN'] = {
     'optimizer_type': 'adam',
     'save_dir': os.path.join(os.environ["HOME"], 'AGCN/AGCN/experiments/results'),
     'model_name': 'ResAGCN',
+    'data_name': 'Tox21'
+}
+
+exp_hps['test_DenseAGCN'] = {
+    'max_hop_K': 2,
+    'batch_size': 256,
+    'n_epoch': 10,
+    'learning_rate': 0.001,
+    'n_filters': 64,
+    'final_feature_n': 128,
+    'seed': 123,
+    'n_support': 1,
+    'optimizer_beta1': 0.9,
+    'optimizer_beta2': 0.999,
+    'optimizer_type': 'adam',
+    'save_dir': os.path.join(os.environ["HOME"], 'AGCN/AGCN/experiments/results'),
+    'model_name': 'DenseAGCN',
     'data_name': 'Tox21'
 }
 
