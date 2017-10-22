@@ -7,7 +7,7 @@ import tensorflow as tf
 import csv
 import os
 import matplotlib.pyplot as plt
-
+from time import gmtime, strftime
 
 from AGCN.models.tf_modules.tf_graphs import SequentialGraphMol
 from AGCN.models.layers import DenseMol, SGC_LL, GraphGatherMol, GraphPoolMol
@@ -92,7 +92,7 @@ class SimpleAGCN(Network):
         beta2 = self.hyper_parameters['optimizer_beta2']
         optimizer_type = self.hyper_parameters['optimizer_type']
 
-        """ Network Architecture - 7 layers"""
+        """ Network Architecture - 3 SGC layers"""
         self.graph_model = SequentialGraphMol(n_features, batch_size, self.max_atom)
         self.graph_model.add(SGC_LL(n_filters, n_features, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
@@ -100,6 +100,7 @@ class SimpleAGCN(Network):
         # self.graph_model.add(GraphPoolMol(batch_size))
         self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
+
         self.graph_model.add(DenseMol(final_feature_n, n_filters, activation='relu'))
         self.graph_model.add(GraphGatherMol(batch_size, activation="tanh"))
 
@@ -139,7 +140,9 @@ class SimpleAGCN(Network):
         # save loss and scores curves into csv file in local disk
         with open(os.path.join(self.save_dir, self.saved_csv_name), 'a') as f:
             writer = csv.writer(f)
-
+            time_now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+            output_line = [time_now]
+            writer.writerow(output_line)
             output_line = [self.model_name, self.data_name, 'training', 'epoch_n:', self.hyper_parameters['n_epoch']]
             writer.writerow(output_line)
             output_line = ['loss_curve'] + self.outputs['losses']
@@ -267,3 +270,46 @@ class SimpleAGCN(Network):
                                                  self.model_name + '_' + self.data_name + '_' + str(row[0]) + '.png'))
                         print('Figure saved at:', self.save_dir)
             return
+
+
+class AGCN6SGC(SimpleAGCN):
+    def construct_network(self):
+        tf.set_random_seed(self.seed)
+
+        n_features = self.data['train'].get_raw_feature_n()
+        batch_size = self.hyper_parameters['batch_size']
+        K = self.hyper_parameters['max_hop_K']
+        n_filters = self.hyper_parameters['n_filters']  # SGL_LL output dimensions
+        final_feature_n = self.hyper_parameters['final_feature_n']
+        learning_rate = self.hyper_parameters['learning_rate']
+        beta1 = self.hyper_parameters['optimizer_beta1']
+        beta2 = self.hyper_parameters['optimizer_beta2']
+        optimizer_type = self.hyper_parameters['optimizer_type']
+
+        """ Network Architecture - 6 SGC layers"""
+        self.graph_model = SequentialGraphMol(n_features, batch_size, self.max_atom)
+        self.graph_model.add(SGC_LL(n_filters, n_features, batch_size, K=K, activation='relu'))
+        # self.graph_model.add(GraphPoolMol(batch_size))
+        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
+        # self.graph_model.add(GraphPoolMol(batch_size))
+        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
+        # self.graph_model.add(GraphPoolMol(batch_size))
+        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
+
+        self.graph_model.add(DenseMol(final_feature_n, n_filters, activation='relu'))
+        self.graph_model.add(GraphGatherMol(batch_size, activation="tanh"))
+
+        """ Classifier """
+        self.classifier = MultitaskGraphClassifier(
+            self.graph_model,
+            len(self.tasks),
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            optimizer_type=optimizer_type,
+            beta1=beta1,
+            beta2=beta2,
+            n_feature=final_feature_n
+        )
+        print("Network Constructed Successfully! \n")

@@ -76,6 +76,9 @@ class ResidualGraphMol(SequentialGraphMol):
         super(ResidualGraphMol, self).__init__(*args, **kwargs)
         self.block_outputs = []  # saved the output tensors of each block
 
+    """
+    tf graph for residual network on graphs
+    """
     def add(self, layer):
         """Adds a new layer to model."""
         with self.graph.as_default():
@@ -103,9 +106,18 @@ class ResidualGraphMol(SequentialGraphMol):
             self.layers.append(layer)
 
 
-class DenseConnectedGraph(ResidualGraphMol):
+class DenseConnectedGraph(SequentialGraphMol):
+    def __init__(self, *args, **kwargs):
+        super(DenseConnectedGraph, self).__init__(*args, **kwargs)
+        # save preceding activations within the dense block
+        self.inblock_activations = {}
+        # save preceding blocks' outputs
+        self.block_outputs = []
+        self.block_layers = []
+        self.current_block_id = 1   # used in construct blocks
+
     """
-    tf graph for densely connected network
+    tf graph for densely connected network on graphs
     """
     def add(self, layer):
         """Adds a new layer to model."""
@@ -118,13 +130,23 @@ class DenseConnectedGraph(ResidualGraphMol):
                 if type(layer).__name__ in ['SGC_LL']:
                     self.output, res_L = layer(self.output + self.graph_topology.get_topology_placeholders())
                     self.L_set.extend(res_L)
-                    self.block_outputs += self.output   # self.block_outputs is still a list
+
+                    """add activation to dict"""
+
+                    # if no dense net block saved, current block_id = 1
+                    if self.current_block_id not in self.inblock_activations:
+                        self.inblock_activations[self.current_block_id] = self.output
+                    else:
+                        self.inblock_activations[self.current_block_id] += self.output
+
                 elif type(layer).__name__ in ['DenseBlockEnd']:  # BlockEnd layer add saved last block output
                     self.output = layer(
-                        self.output + [self.graph_topology.get_dataslice_placeholders()] + self.block_outputs
+                        self.output + [self.graph_topology.get_dataslice_placeholders()] +
+                        self.inblock_activations[self.current_block_id] + self.block_outputs
                     )
-                    # in next Dense Block, re-stack the convolution activations
-                    self.block_outputs = []
+                    self.block_outputs += self.output
+                    self.block_layers.append(layer)
+                    self.current_block_id += 1
                 else:
                     self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
             else:
