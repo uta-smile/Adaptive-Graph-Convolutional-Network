@@ -233,8 +233,8 @@ class MultitaskGraphClassifier(Model):
                     for batch_num, (X_b, y_b, w_b, ids_b) in enumerate(train_data.iterbatches(
                             self.batch_size, pad_batches=self.pad_batches)):
 
-                        if batch_num % log_every_N_batches == 0:
-                            log("On batch %d" % batch_num, self.verbose)
+                        # if batch_num % log_every_N_batches == 0:
+                        #     log("On batch %d" % batch_num, self.verbose)
 
                         """ these network models contains SGC_LL layer,
                         which also return updated residual Laplacian"""

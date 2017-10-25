@@ -6,11 +6,12 @@ from __future__ import unicode_literals
 import tensorflow as tf
 import math
 
+from AGCN.models.layers import Layer
 from AGCN.models.layers.blockend import BlockEnd
 from AGCN.models.operators import activations
 
 
-class DenseBlockEnd(BlockEnd):
+class DenseBlockEnd(Layer):
 
     """
     Dense connected network on graph. This DenseBlockEnd layer add up all previous
@@ -19,14 +20,24 @@ class DenseBlockEnd(BlockEnd):
     """
 
     def __init__(self,
-                 block_id=None,
+                 block_id,
+                 res_n_features,
+                 n_features,
                  activation='relu',
-                 *args,
+                 K=2,
+                 max_atom=128,
+                 batch_size=256,
                  **kwargs):
 
-        super(DenseBlockEnd, self).__init__(*args, **kwargs)
-        self.block_id = block_id    # this id is to differentiate blocks
+        super(DenseBlockEnd, self).__init__(**kwargs)
+        self.max_atom = max_atom
+        self.batch_size = batch_size
+        self.block_id = block_id  # this id is to differentiate blocks
         self.activation = activations.get(activation)
+        self.K = K
+        self.res_n_features = res_n_features
+        self.n_features = n_features
+        self.vars = {}  # save feature transform matrix to be learned
 
     def call(self, x):
         # Extract graph topology
@@ -51,11 +62,7 @@ class DenseBlockEnd(BlockEnd):
             l_residuals)
 
         # activation
-        activated_atoms = []
-        for i in range(self.batch_size):
-            activated_mol = self.activation(atom_features_add_res[i])
-
-            activated_atoms.append(activated_mol)
+        activated_atoms = map(lambda s: self.activation(s), atom_features_add_res)
 
         return activated_atoms
 

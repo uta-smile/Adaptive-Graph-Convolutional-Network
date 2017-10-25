@@ -59,7 +59,7 @@ class DenseAGCN(SimpleAGCN):
         print("Network Constructed Successfully! \n")
 
 
-class LongDenseAGCN(SimpleAGCN):
+class LongDenseAGCN(DenseAGCN):
     def construct_network(self):
         tf.set_random_seed(self.seed)
 

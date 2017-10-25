@@ -24,23 +24,49 @@ class ResAGCN(SimpleAGCN):
         beta1 = self.hyper_parameters['optimizer_beta1']
         beta2 = self.hyper_parameters['optimizer_beta2']
         optimizer_type = self.hyper_parameters['optimizer_type']
+        l_n_filters = self.hyper_parameters['l_n_filters']
+
+        # assign the number of feature at output of the layer
+        n_filters_1 = l_n_filters[0]
+        n_filters_2 = l_n_filters[1]
+        n_filters_3 = l_n_filters[2]
+        n_filters_4 = l_n_filters[3]
+        n_filters_5 = l_n_filters[4]
+        n_filters_6 = l_n_filters[5]
 
         """ Residual Network Architecture - 3 residual blocks 6 SGC layers"""
         self.graph_model = ResidualGraphMol(n_features, batch_size, self.max_atom)
         """ block start """
-        self.graph_model.add(SGC_LL(n_filters, n_features, batch_size, K=K, activation='relu'))
-        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
-        self.graph_model.add(BlockEnd(self.max_atom, batch_size))
+        self.graph_model.add(SGC_LL(n_filters_1, n_features, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_2, n_filters_1, batch_size, K=K, activation='relu'))
+        self.graph_model.add(BlockEnd(1,
+                                      n_filters_1,
+                                      n_filters_2,
+                                      'relu',
+                                      self.max_atom,
+                                      batch_size)
+                             )
         """ block end """
-        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
-        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
-        self.graph_model.add(BlockEnd(self.max_atom, batch_size))
+        self.graph_model.add(SGC_LL(n_filters_3, n_filters_2, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_4, n_filters_3, batch_size, K=K, activation='relu'))
+        self.graph_model.add(BlockEnd(2,
+                                      n_filters_2,
+                                      n_filters_4,
+                                      'relu',
+                                      self.max_atom,
+                                      batch_size)
+                             )
+        self.graph_model.add(SGC_LL(n_filters_5, n_filters_4, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_6, n_filters_5, batch_size, K=K, activation='relu'))
+        self.graph_model.add(BlockEnd(3,
+                                      n_filters_4,
+                                      n_filters_6,
+                                      'relu',
+                                      self.max_atom,
+                                      batch_size)
+                             )
 
-        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
-        self.graph_model.add(SGC_LL(n_filters, n_filters, batch_size, K=K, activation='relu'))
-        self.graph_model.add(BlockEnd(self.max_atom, batch_size))
-
-        self.graph_model.add(DenseMol(final_feature_n, n_filters, activation='relu'))
+        self.graph_model.add(DenseMol(final_feature_n, n_filters_6, activation='relu'))
         self.graph_model.add(GraphGatherMol(batch_size, activation="tanh"))
 
         """ Classifier """

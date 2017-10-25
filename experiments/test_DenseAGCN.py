@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from AGCN.models.networks import DenseAGCN
+from AGCN.models.networks import DenseAGCN, LongDenseAGCN
 from AGCN.utils.data_loader import SMILESLoader
 from AGCN.experiments.dataloader_configs import loaderconfig_dict
 from AGCN.experiments.hyper_parameters import exp_hps
@@ -34,12 +34,12 @@ metrics = [
 print("Metrics Loaded! \n")
 
 # load hyper-parameters
-hyper_parameters = exp_hps['test_DenseAGCN']
+hyper_parameters = exp_hps['test_LongDenseAGCN']
 print("Hyper-parameter Loaded!  \n")
 
 
 # create network
-network = DenseAGCN(
+network = LongDenseAGCN(
                     train_data,
                     valid_data,
                     test_data,
@@ -52,6 +52,6 @@ network = DenseAGCN(
 
 network.train()
 network.final_evaluate()
-network.plot_loss_curve()
+# network.plot_loss_curve()
 # network.plot_score_curves('task_averaged-precision_score')
 
