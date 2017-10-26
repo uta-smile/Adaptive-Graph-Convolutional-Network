@@ -4,4 +4,3 @@ from __future__ import unicode_literals
 
 import AGCN.models
 import AGCN.utils
-import AGCN.experiments

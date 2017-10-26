@@ -34,7 +34,7 @@ class ResAGCN(SimpleAGCN):
         # n_filters_5 = l_n_filters[4]
         # n_filters_6 = l_n_filters[5]
 
-        """ Residual Network Architecture - 3 residual blocks 6 SGC layers"""
+        """ Residual Network Architecture """
         self.graph_model = ResidualGraphMol(n_features, batch_size, self.max_atom)
         """ block start """
         self.graph_model.add(SGC_LL(n_filters_1, n_features, batch_size, K=K, activation='relu'))

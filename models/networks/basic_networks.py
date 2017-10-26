@@ -288,7 +288,7 @@ class SimpleAGCN(Network):
             return
 
 
-class AGCN6SGC(SimpleAGCN):
+class LongAGCN(SimpleAGCN):
     def construct_network(self):
         tf.set_random_seed(self.seed)
 
@@ -314,7 +314,6 @@ class AGCN6SGC(SimpleAGCN):
         """ Network Architecture - 12 SGC layers"""
         self.graph_model = SequentialGraphMol(n_features, batch_size, self.max_atom)
         self.graph_model.add(SGC_LL(n_filters_1, n_features, batch_size, K=K, activation='relu'))
-        # self.graph_model.add(GraphPoolMol(batch_size))
         self.graph_model.add(SGC_LL(n_filters_1, n_filters_1, batch_size, K=K, activation='relu'))
         self.graph_model.add(SGC_LL(n_filters_1, n_filters_1, batch_size, K=K, activation='relu'))
         self.graph_model.add(SGC_LL(n_filters_1, n_filters_1, batch_size, K=K, activation='relu'))
