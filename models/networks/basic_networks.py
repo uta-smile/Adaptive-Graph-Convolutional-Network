@@ -308,22 +308,28 @@ class AGCN6SGC(SimpleAGCN):
         n_filters_2 = l_n_filters[1]
         n_filters_3 = l_n_filters[2]
         n_filters_4 = l_n_filters[3]
-        n_filters_5 = l_n_filters[4]
-        n_filters_6 = l_n_filters[5]
+        # n_filters_5 = l_n_filters[4]
+        # n_filters_6 = l_n_filters[5]
 
-        """ Network Architecture - 6 SGC layers"""
+        """ Network Architecture - 12 SGC layers"""
         self.graph_model = SequentialGraphMol(n_features, batch_size, self.max_atom)
         self.graph_model.add(SGC_LL(n_filters_1, n_features, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
+        self.graph_model.add(SGC_LL(n_filters_1, n_filters_1, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_1, n_filters_1, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_1, n_filters_1, batch_size, K=K, activation='relu'))
+        # self.graph_model.add(GraphPoolMol(batch_size))
         self.graph_model.add(SGC_LL(n_filters_2, n_filters_1, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_2, n_filters_2, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_2, n_filters_2, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_2, n_filters_2, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
         self.graph_model.add(SGC_LL(n_filters_3, n_filters_2, batch_size, K=K, activation='relu'))
-        # self.graph_model.add(GraphPoolMol(batch_size))
+        self.graph_model.add(SGC_LL(n_filters_3, n_filters_3, batch_size, K=K, activation='relu'))
         self.graph_model.add(SGC_LL(n_filters_4, n_filters_3, batch_size, K=K, activation='relu'))
-        self.graph_model.add(SGC_LL(n_filters_5, n_filters_4, batch_size, K=K, activation='relu'))
-        self.graph_model.add(SGC_LL(n_filters_6, n_filters_5, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_4, n_filters_4, batch_size, K=K, activation='relu'))
 
-        self.graph_model.add(DenseMol(final_feature_n, n_filters_6, activation='relu'))
+        self.graph_model.add(DenseMol(final_feature_n, n_filters_4, activation='relu'))
         self.graph_model.add(GraphGatherMol(batch_size, activation="tanh"))
 
         """ Classifier """

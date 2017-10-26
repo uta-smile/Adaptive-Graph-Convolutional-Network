@@ -66,7 +66,7 @@ hyper_parameters_LongAGCN = {
     'batch_size': 256,
     'n_epoch': 20,
     'n_filters': 64,
-    'l_n_filters': [64, 64, 128, 256, 128, 64],     # 6 SGC_LL layers
+    'l_n_filters': [64, 64, 128, 256],     # 6 SGC_LL layers
     'final_feature_n': 256,
     'seed': 123,
     'n_support': 1,
@@ -79,7 +79,7 @@ hyper_parameters_LongAGCN = {
 }
 
 # define the search range
-lr_list = [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01]
+lr_list = [0.0005, 0.001, 0.002]
 
 # for lr in lr_list:
 #     # create network

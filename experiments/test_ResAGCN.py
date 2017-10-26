@@ -50,7 +50,7 @@ hyper_parameters_ResAGCN = {
     'batch_size': 256,
     'n_epoch': 20,
     'n_filters': 64,
-    'l_n_filters': [64, 64, 128, 256, 128, 64],     # 6 SGC_LL layers
+    'l_n_filters': [64, 128, 128, 256],
     'final_feature_n': 256,
     'seed': 123,
     'n_support': 1,
@@ -63,7 +63,7 @@ hyper_parameters_ResAGCN = {
 }
 
 # define the search range
-lr_list = [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01]
+lr_list = [0.0005, 0.001, 0.002]
 
 
 for lr in lr_list:
@@ -86,25 +86,25 @@ for lr in lr_list:
 # network.plot_loss_curve()
 # network.plot_score_curves('task_averaged-precision_score')
 
-hyper_parameters_ResAGCN['l_n_filters'] = [64, 64, 64, 64, 64, 64]
-
-for lr in lr_list:
-    # create network
-    hyper_parameters_ResAGCN['learning_rate'] = lr
-    network = ResAGCN(
-                        train_data,
-                        valid_data,
-                        test_data,
-                        max_atom,
-                        tasks,
-                        hyper_parameters_ResAGCN,
-                        transformers,
-                        metrics
-    )
-
-    network.train()
-    network.final_evaluate()
-    print('Finish the network training/evaluation with learning rate')
-
-
+# hyper_parameters_ResAGCN['l_n_filters'] = [64, 64, 64, 64, 64, 64]
+#
+# for lr in lr_list:
+#     # create network
+#     hyper_parameters_ResAGCN['learning_rate'] = lr
+#     network = ResAGCN(
+#                         train_data,
+#                         valid_data,
+#                         test_data,
+#                         max_atom,
+#                         tasks,
+#                         hyper_parameters_ResAGCN,
+#                         transformers,
+#                         metrics
+#     )
+#
+#     network.train()
+#     network.final_evaluate()
+#     print('Finish the network training/evaluation with learning rate')
+#
+#
 
