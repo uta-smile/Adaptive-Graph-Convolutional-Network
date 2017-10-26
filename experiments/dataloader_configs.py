@@ -7,6 +7,7 @@ loaderconfig_dict = dict()
 
 """ dataset loader define"""
 smiles_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, smiles_filed, download_url')
+pc_loader = namedtuple('pc_loader', 'dataset_class, dataset_name, file_name, tasks')
 
 
 """ Tox 21 SMILES Dataset """
@@ -25,3 +26,15 @@ smiles_loader.download_url = 'http://deepchem.io.s3-website-us-west-1.amazonaws.
 
 loaderconfig_dict['tox21'] = smiles_loader
 
+
+""" Point Cloud Sydney urban Dataset"""
+pc_tasks = ['bicycle', 'pedestrian', 'biker', 'van', 'excavator', 'traffic_sign', 'scooter', 'bench',
+            'trash', 'vegetation', 'cyclist', 'umbrella', 'bus', 'ticket_machine', 'trunk', 'post', 'building',
+            'traffic_lights', '4wd', 'ute', 'car', 'pillar', 'tree', 'pole', 'truck', 'trailer']
+
+pc_loader.tasks = pc_tasks
+pc_loader.dataset_class = 'pointcloud'
+pc_loader.dataset_name = 'sydney'
+pc_loader.file_name = 'objects'
+
+loaderconfig_dict['sydney'] = pc_loader

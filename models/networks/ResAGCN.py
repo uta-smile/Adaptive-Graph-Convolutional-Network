@@ -18,7 +18,7 @@ class ResAGCN(SimpleAGCN):
         n_features = self.data['train'].get_raw_feature_n()
         batch_size = self.hyper_parameters['batch_size']
         K = self.hyper_parameters['max_hop_K']
-        n_filters = self.hyper_parameters['n_filters']  # SGL_LL output dimensions
+        # n_filters = self.hyper_parameters['n_filters']  # SGL_LL output dimensions
         final_feature_n = self.hyper_parameters['final_feature_n']
         learning_rate = self.hyper_parameters['learning_rate']
         beta1 = self.hyper_parameters['optimizer_beta1']
@@ -66,6 +66,7 @@ class ResAGCN(SimpleAGCN):
                                       self.max_atom,
                                       batch_size)
                              )
+
         self.graph_model.add(SGC_LL(n_filters_2, n_filters_2, batch_size, K=K, activation='relu'))
         self.graph_model.add(SGC_LL(n_filters_2, n_filters_2, batch_size, K=K, activation='relu'))
         self.graph_model.add(BlockEnd(2,

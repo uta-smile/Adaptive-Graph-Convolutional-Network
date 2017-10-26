@@ -40,12 +40,12 @@ print("Metrics Loaded! \n")
 # hyper_parameters = exp_hps['test_SimpleAGCN']
 # print("Hyper-parameter Loaded!  \n")
 
-hyper_parameters_SimpleAGCN = {
+hyper_parameters_ResAGCN = {
     'max_hop_K': 2,
     'batch_size': 256,
     'n_epoch': 20,
     'n_filters': 64,
-    'l_n_filters': [64, 128, 128, 64],
+    'l_n_filters': [16, 32, 32, 16],     # 6 SGC_LL layers
     'final_feature_n': 256,
     'seed': 123,
     'n_support': 1,
@@ -53,40 +53,23 @@ hyper_parameters_SimpleAGCN = {
     'optimizer_beta2': 0.999,
     'optimizer_type': 'adam',
     'save_dir': os.path.join(os.environ["HOME"], 'AGCN/AGCN/experiments/results'),
-    'model_name': 'SimpleAGCN',
-    'data_name': 'PC_Sydney'
-}
-
-hyper_parameters_LongAGCN = {
-    'max_hop_K': 2,
-    'batch_size': 256,
-    'n_epoch': 20,
-    'n_filters': 64,
-    'l_n_filters': [64, 64, 128, 256],     # 6 SGC_LL layers
-    'final_feature_n': 256,
-    'seed': 123,
-    'n_support': 1,
-    'optimizer_beta1': 0.9,
-    'optimizer_beta2': 0.999,
-    'optimizer_type': 'adam',
-    'save_dir': os.path.join(os.environ["HOME"], 'AGCN/AGCN/experiments/results'),
-    'model_name': 'AGCN6SGC',
+    'model_name': 'ResAGCN',
     'data_name': 'PC_Sydney'
 }
 
 # define the search range
-lr_list = [0.0005, 0.001, 0.002]
+lr_list = [0.0002, 0.0005, 0.001]
 
 for lr in lr_list:
     # create network
-    hyper_parameters_SimpleAGCN['learning_rate'] = lr
+    hyper_parameters_ResAGCN['learning_rate'] = lr
     network = SimpleAGCN(
                         train_data,
                         valid_data,
                         test_data,
                         max_atom,
                         tasks,
-                        hyper_parameters_SimpleAGCN,
+                        hyper_parameters_ResAGCN,
                         transformers,
                         metrics
     )
