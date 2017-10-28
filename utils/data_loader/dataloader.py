@@ -11,6 +11,7 @@ from AGCN.utils.feature import CircularFingerprint, ConvMolFeaturizer
 from AGCN.utils.transformer import BalancingTransformer
 from AGCN.utils.datatset import DiskDataset
 from AGCN.utils.splitter import IndexSplitter, ScaffoldSplitter, RandomSplitter
+from AGCN.utils.save import load_from_disk
 
 
 class DataLoader(object):
@@ -19,7 +20,7 @@ class DataLoader(object):
                  dataset_class,
                  dataset_name,
                  file_name,
-                 tasks,
+                 tasks=None,
                  smiles_field=None,
                  id_field=None,
                  feature=None,
@@ -48,9 +49,19 @@ class DataLoader(object):
             os.makedirs(self.processed_data_dir)
 
         "define task/label names"
-        if not isinstance(tasks, list):
-            raise ValueError("tasks must be a list.")
-        self.tasks = tasks  # define the label field names
+        if tasks is None and len(os.listdir(self.processed_data_dir)) == 0:
+            # no given tasks and no processed data, need to retrieve from dataset
+            dataset = load_from_disk(self.file_dir)
+            self.tasks = dataset.columns.values[1:].tolist()
+        elif tasks is not None and isinstance(tasks, list):
+            # not pre-calculated, but directly given by input
+            self.tasks = tasks  # define the label field names
+        elif len(os.listdir(self.processed_data_dir)) != 0:
+            # already be retrieved and saved at meta data
+            meta_data = pickle.load(open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'rb'))
+            self.tasks = meta_data[1:]
+        else:
+            raise ValueError("if task name is given, it must be a list.")
 
         "define smile field/ ID field"
         self.smiles_field = smiles_field
@@ -186,7 +197,6 @@ class DataLoader(object):
 
             meta_data = pickle.load(open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'rb'))
             max_atom = meta_data[0]
-
             print("Balancing Data by Weight.......")
             transformers = [
                 BalancingTransformer(transform_w=True, dataset=dataset)
@@ -208,6 +218,7 @@ class DataLoader(object):
             """max_atom is the max atom of molecule in all_dataset """
             max_atom = self.find_max_atom(dataset)
             meta_data.append(max_atom)
+            meta_data.extend(self.tasks)
             with open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'wb') as f:
                 pickle.dump(meta_data, f)
 

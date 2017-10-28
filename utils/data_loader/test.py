@@ -181,5 +181,6 @@ def test_pc():
 
 if __name__ =="__main__":
     # test_pc()
-    test_smiles()
+    # test_smiles()
     # test_cifarloader()
+    test_fashionloader()

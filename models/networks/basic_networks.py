@@ -99,7 +99,7 @@ class SimpleAGCN(Network):
         n_filters_3 = l_n_filters[2]
         n_filters_4 = l_n_filters[3]
 
-        """ Network Architecture - 4 SGC layers"""
+        """ Network Architecture - 3 SGC layers, most original AGCN"""
         self.graph_model = SequentialGraphMol(n_features, batch_size, self.max_atom)
         self.graph_model.add(SGC_LL(n_filters_1, n_features, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
@@ -108,10 +108,10 @@ class SimpleAGCN(Network):
         self.graph_model.add(SGC_LL(n_filters_3, n_filters_2, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
 
-        self.graph_model.add(SGC_LL(n_filters_4, n_filters_3, batch_size, K=K, activation='relu'))
+        # self.graph_model.add(SGC_LL(n_filters_4, n_filters_3, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
 
-        self.graph_model.add(DenseMol(final_feature_n, n_filters_4, activation='relu'))
+        self.graph_model.add(DenseMol(final_feature_n, n_filters_3, activation='relu'))
         self.graph_model.add(GraphGatherMol(batch_size, activation="tanh"))
 
         """ Classifier """
