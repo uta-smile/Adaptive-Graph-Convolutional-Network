@@ -31,7 +31,8 @@ class SequentialGraphMol(object):
         self.layers = []
         self.max_atom = max_atom
         self.batch_size = batch_size
-        self.L_set = []     # stored tensor for residual Laplacian matrix for each sample in batch
+        self.res_L_set = []     # stored tensor for residual Laplacian matrix for each sample in batch
+        self.res_W_set = []
 
     def add(self, layer):
         """Adds a new layer to model."""
@@ -42,8 +43,9 @@ class SequentialGraphMol(object):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
                 if type(layer).__name__ in ['SGC_LL']:
-                    self.output, res_L = layer(self.output + self.graph_topology.get_topology_placeholders())
-                    self.L_set.extend(res_L)
+                    self.output, res_L, res_W = layer(self.output + self.graph_topology.get_topology_placeholders())
+                    self.res_L_set.extend(res_L)
+                    self.res_W_set.extend(res_W)
                 else:
                     self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
             else:
@@ -51,8 +53,11 @@ class SequentialGraphMol(object):
             # Add layer to the layer list
             self.layers.append(layer)
 
-    def return_L_set(self):
-        return self.L_set   # return the Laplacian of each output of  gcn convolution layer
+    def get_resL_set(self):
+        return self.res_L_set   # return the Laplacian of each output of  gcn convolution layer
+
+    def get_resW_set(self):
+        return self.res_W_set
 
     def get_graph_topology(self):
         return self.graph_topology
@@ -72,6 +77,7 @@ class SequentialGraphMol(object):
 
 
 class ResidualGraphMol(SequentialGraphMol):
+
     def __init__(self, *args, **kwargs):
         super(ResidualGraphMol, self).__init__(*args, **kwargs)
         self.block_outputs = []  # saved the output tensors of each block
@@ -88,8 +94,9 @@ class ResidualGraphMol(SequentialGraphMol):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
                 if type(layer).__name__ in ['SGC_LL']:
-                    self.output, res_L = layer(self.output + self.graph_topology.get_topology_placeholders())
-                    self.L_set.extend(res_L)
+                    self.output, res_L, res_W = layer(self.output + self.graph_topology.get_topology_placeholders())
+                    self.res_L_set.extend(res_L)
+                    self.res_W_set.extend(res_W)
                     if 'SGC_LL' not in map(lambda l: type(l).__name__, self.layers):
                         # first SGC_LL layer
                         self.block_outputs.append(self.output)
@@ -106,7 +113,56 @@ class ResidualGraphMol(SequentialGraphMol):
             self.layers.append(layer)
 
 
+class ResidualGraphMolResLap(SequentialGraphMol):
+
+    def __init__(self, *args, **kwargs):
+        super(ResidualGraphMolResLap, self).__init__(*args, **kwargs)
+        self.block_outputs = []  # saved the output tensors of each block
+        self.stack_laplacians = []
+
+    """
+    tf graph for residual network on graphs + residual graph Laplacian added to later layers
+    """
+    def add(self, layer):
+        """Adds a new layer to model."""
+        with self.graph.as_default():
+            # For graphical layers, add connectivity placeholders
+            if type(layer).__name__ in ['GraphGatherMol', 'GraphPoolMol', 'SGC_LL_Reslap', 'BlockEnd']:
+                if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
+                    assert self.layers[-1].__name__ != "GraphGatherMol", \
+                        'Cannot use GraphConv or GraphGather layers after a GraphGather'
+                if type(layer).__name__ in ['SGC_LL_Reslap']:
+                    self.output, res_L, res_W, L = layer(
+                        self.output + self.graph_topology.get_topology_placeholders() + \
+                        self.stack_laplacians[-self.batch_size:]
+                    )
+                    self.res_L_set.extend(res_L)
+                    self.res_W_set.extend(res_W)
+
+                    if 'SGC_LL_Reslap' not in map(lambda l: type(l).__name__, self.layers):
+                        # first SGC_LL layer
+                        self.block_outputs.append(self.output)
+                    if layer.save_lap:  # save the laplacian matrix
+                        self.stack_laplacians.extend(L)     # extend as a list, whose length is batch size
+
+                elif type(layer).__name__ in ['BlockEnd']:  # BlockEnd layer add saved last block output
+                    self.output = layer(
+                        self.output + [self.graph_topology.get_dataslice_placeholders()] + self.block_outputs[-1]
+                    )
+                    self.block_outputs.append(self.output)
+                else:
+                    self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
+            else:
+                self.output = layer(self.output)
+            # Add layer to the layer list
+            self.layers.append(layer)
+
+    def get_laplacian(self):
+        return self.stack_laplacians
+
+
 class DenseConnectedGraph(SequentialGraphMol):
+
     def __init__(self, *args, **kwargs):
         super(DenseConnectedGraph, self).__init__(*args, **kwargs)
         # save preceding activations within the dense block
@@ -129,7 +185,7 @@ class DenseConnectedGraph(SequentialGraphMol):
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
                 if type(layer).__name__ in ['SGC_LL']:
                     self.output, res_L = layer(self.output + self.graph_topology.get_topology_placeholders())
-                    self.L_set.extend(res_L)
+                    self.res_L_set.extend(res_L)
 
                     """add activation to dict"""
 

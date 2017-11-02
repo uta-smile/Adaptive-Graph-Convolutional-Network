@@ -11,7 +11,7 @@ from time import gmtime, strftime
 
 from AGCN.models.tf_modules.tf_graphs import SequentialGraphMol
 from AGCN.models.layers import DenseMol, SGC_LL, GraphGatherMol, GraphPoolMol
-from AGCN.models.tf_modules.multitask_classifier import MultitaskGraphClassifier
+from AGCN.models.tf_modules import MultitaskGraphClassifier, MultitaskGraphRegressor
 
 
 class Network(object):
@@ -24,33 +24,58 @@ class Network(object):
                  hyper_parameters,
                  transformers,
                  metrics,
-                 seed=123,
                  save_fig=True,
                  ):
 
         self.data = {'train': train_data, 'validation': valid_data, 'testing': test_data}
-        self.max_atom = max_atom
-        self.tasks = tasks
-        self.metrics = metrics
-
-        self.metric_names = [m.name for m in self.metrics]
-
-        self.transformers = transformers
-        self.seed = seed
 
         assert hyper_parameters is not None
         self.hyper_parameters = hyper_parameters
 
+        self.max_atom = max_atom
+        self.tasks = tasks
+        self.metrics = metrics
+        self.metric_names = [m.name for m in self.metrics]
+
+        self.transformers = transformers
+        self.seed = self.hyper_parameters['seed']
+
         self.graph_model = None     # network architecture
+        """
+         construct network
+         """
+        self.construct_network()
+
         self.classifier = None   # network model for training and evaluation
+        self.tasks_type = self.hyper_parameters['task_type']     # regression / classification / segmentation
+
+        """ Define Classifier """
+        if self.tasks_type == "classification":
+            self.classifier = MultitaskGraphClassifier(
+                self.graph_model,
+                len(self.tasks),
+                batch_size=self.hyper_parameters['batch_size'],
+                learning_rate=self.hyper_parameters['learning_rate'],
+                optimizer_type=self.hyper_parameters['optimizer_type'],
+                beta1=self.hyper_parameters['optimizer_beta1'],
+                beta2=self.hyper_parameters['optimizer_beta2'],
+                n_feature=self.hyper_parameters['final_feature_n']
+            )
+        elif self.tasks_type == "regression":
+            self.classifier = MultitaskGraphRegressor(
+                self.graph_model,
+                len(self.tasks),
+                batch_size=self.hyper_parameters['batch_size'],
+                learning_rate=self.hyper_parameters['learning_rate'],
+                optimizer_type=self.hyper_parameters['optimizer_type'],
+                beta1=self.hyper_parameters['optimizer_beta1'],
+                beta2=self.hyper_parameters['optimizer_beta2'],
+                n_feature=self.hyper_parameters['final_feature_n']
+            )
 
         self.model_name = self.hyper_parameters['model_name']
         self.data_name = self.hyper_parameters['data_name']
         self.saved_csv_name = self.model_name + '_' + self.data_name + '.csv'
-        """
-        construct network
-        """
-        self.construct_network()
 
         self.outputs = {}
         # one experiment, one save file
@@ -74,10 +99,6 @@ class SimpleAGCN(Network):
     """
     A simple example of AGCN
     """
-    # def __init__(self,
-    #              **kwargs):
-    #     super(SimpleAGCN, self).__init__(**kwargs)
-    #     self.model_name = 'SimpleAGCN'
 
     def construct_network(self):
         tf.set_random_seed(self.seed)
@@ -85,12 +106,7 @@ class SimpleAGCN(Network):
         n_features = self.data['train'].get_raw_feature_n()
         batch_size = self.hyper_parameters['batch_size']
         K = self.hyper_parameters['max_hop_K']
-        # n_filters = self.hyper_parameters['n_filters']  # SGL_LL output dimensions
         final_feature_n = self.hyper_parameters['final_feature_n']
-        learning_rate = self.hyper_parameters['learning_rate']
-        beta1 = self.hyper_parameters['optimizer_beta1']
-        beta2 = self.hyper_parameters['optimizer_beta2']
-        optimizer_type = self.hyper_parameters['optimizer_type']
         l_n_filters = self.hyper_parameters['l_n_filters']
 
         # assign the number of feature at output of the SGC_LL layer
@@ -99,7 +115,7 @@ class SimpleAGCN(Network):
         n_filters_3 = l_n_filters[2]
         n_filters_4 = l_n_filters[3]
 
-        """ Network Architecture - 3 SGC layers, most original AGCN"""
+        """ Network Architecture - 4 SGC layers, most original AGCN"""
         self.graph_model = SequentialGraphMol(n_features, batch_size, self.max_atom)
         self.graph_model.add(SGC_LL(n_filters_1, n_features, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
@@ -108,23 +124,12 @@ class SimpleAGCN(Network):
         self.graph_model.add(SGC_LL(n_filters_3, n_filters_2, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
 
-        # self.graph_model.add(SGC_LL(n_filters_4, n_filters_3, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(n_filters_4, n_filters_3, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
 
-        self.graph_model.add(DenseMol(final_feature_n, n_filters_3, activation='relu'))
+        self.graph_model.add(DenseMol(final_feature_n, n_filters_4, activation='relu'))
         self.graph_model.add(GraphGatherMol(batch_size, activation="tanh"))
 
-        """ Classifier """
-        self.classifier = MultitaskGraphClassifier(
-            self.graph_model,
-            len(self.tasks),
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            optimizer_type=optimizer_type,
-            beta1=beta1,
-            beta2=beta2,
-            n_feature=final_feature_n
-        )
         print("Network Constructed Successfully! \n")
 
     def train(self):
@@ -295,12 +300,7 @@ class LongAGCN(SimpleAGCN):
         n_features = self.data['train'].get_raw_feature_n()
         batch_size = self.hyper_parameters['batch_size']
         K = self.hyper_parameters['max_hop_K']
-        # n_filters = self.hyper_parameters['n_filters']  # SGL_LL output dimensions
         final_feature_n = self.hyper_parameters['final_feature_n']
-        learning_rate = self.hyper_parameters['learning_rate']
-        beta1 = self.hyper_parameters['optimizer_beta1']
-        beta2 = self.hyper_parameters['optimizer_beta2']
-        optimizer_type = self.hyper_parameters['optimizer_type']
         l_n_filters = self.hyper_parameters['l_n_filters']
 
         # assign the number of feature at output of the layer
@@ -331,15 +331,4 @@ class LongAGCN(SimpleAGCN):
         self.graph_model.add(DenseMol(final_feature_n, n_filters_4, activation='relu'))
         self.graph_model.add(GraphGatherMol(batch_size, activation="tanh"))
 
-        """ Classifier """
-        self.classifier = MultitaskGraphClassifier(
-            self.graph_model,
-            len(self.tasks),
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            optimizer_type=optimizer_type,
-            beta1=beta1,
-            beta2=beta2,
-            n_feature=final_feature_n
-        )
         print("Network Constructed Successfully! \n")

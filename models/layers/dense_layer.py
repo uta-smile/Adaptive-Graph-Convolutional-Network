@@ -30,7 +30,7 @@ class DenseMol(Layer):
             kwargs['input_shape'] = (self.input_dim,)
         super(DenseMol, self).__init__(**kwargs)
 
-    def call(self, x):
+    def __call__(self, x):
 
         self.W = self.add_weight(
             (self.input_dim, self.output_dim),

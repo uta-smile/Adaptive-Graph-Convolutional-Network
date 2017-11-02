@@ -15,7 +15,9 @@ class BlockEnd(Layer):
     BlockEnd layer is the last layer of one Residual graph Network block.
     A ResNet block may contain multiple graphconv and graphpool layers.
 
-    This layer does not have training parameters
+    res_n_features -> feature number of previous layer, (residual values)
+    n_feature -> feature number of current layer
+
     """
 
     def __init__(self,
@@ -82,4 +84,7 @@ class BlockEnd(Layer):
             x_add_res.append(x_new_pad)
 
         return x_add_res
+
+
+
 

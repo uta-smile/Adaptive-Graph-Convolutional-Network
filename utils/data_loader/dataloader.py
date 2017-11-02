@@ -8,7 +8,7 @@ import numpy as np
 import pickle
 
 from AGCN.utils.feature import CircularFingerprint, ConvMolFeaturizer
-from AGCN.utils.transformer import BalancingTransformer
+from AGCN.utils.transformer import BalancingTransformer, NormalizationTransformer
 from AGCN.utils.datatset import DiskDataset
 from AGCN.utils.splitter import IndexSplitter, ScaffoldSplitter, RandomSplitter
 from AGCN.utils.save import load_from_disk
@@ -25,6 +25,7 @@ class DataLoader(object):
                  id_field=None,
                  feature=None,
                  splitter='index',
+                 transformer='normalization',
                  download_url=None,
                  verbose=True):
 
@@ -82,6 +83,12 @@ class DataLoader(object):
 
         "define splitter"
         self.splitter = splitter
+
+        "define the transformer"
+        if transformer == 'normalization':
+            self.Transformer = NormalizationTransformer
+        elif transformer == 'balancing':
+            self.Transformer = BalancingTransformer
 
     def featurize(self, shard_size=2048):
         """
@@ -199,7 +206,7 @@ class DataLoader(object):
             max_atom = meta_data[0]
             print("Balancing Data by Weight.......")
             transformers = [
-                BalancingTransformer(transform_w=True, dataset=dataset)
+                self.Transformer(transform_w=True, dataset=dataset)
             ]
         else:
             print("Loading and Featurizing Data.......")
@@ -209,7 +216,7 @@ class DataLoader(object):
 
             print("Transforming Data.")
             transformers = [
-                BalancingTransformer(transform_w=True, dataset=dataset)
+                self.Transformer(transform_w=True, dataset=dataset)
             ]
             for transformer in transformers:
                 # pass dataset through maybe more than one transformer

@@ -75,7 +75,7 @@ class Layer(object):
             elif 'input_shape' in kwargs:
                 batch_input_shape = (None,) + tuple(kwargs['input_shape'])
             self.batch_input_shape = batch_input_shape
-            input_dtype = kwargs.get('input_dtype', tf.float32)
+            input_dtype = kwargs.get('input_dtype', tf.float64)
             self.input_dtype = input_dtype
 
     @staticmethod

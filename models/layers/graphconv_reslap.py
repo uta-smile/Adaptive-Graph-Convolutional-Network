@@ -8,53 +8,11 @@ import numpy as np
 import scipy.sparse as sp
 
 from AGCN.models.operators import activations
-from AGCN.models.layers import Layer, Dropout
+from AGCN.models.layers import Layer, Dropout, SGC_LL
+from AGCN.models.layers.graphconv import glorot, zeros
 
 
-def glorot(shape, name=None):
-    """Glorot & Bengio (AISTATS 2010) init."""
-    init_range = np.sqrt(6.0/(shape[0]+shape[1]))
-    initial = tf.random_uniform(shape, minval=-init_range, maxval=init_range, dtype=tf.float32)
-    return tf.Variable(initial, name=name)
-
-
-def zeros(shape, name=None):
-    """All zeros init."""
-    initial = tf.zeros(shape, dtype=tf.float32)
-    return tf.Variable(initial, name=name)
-
-
-class SGC_LL(Layer):
-    """
-    SGC_LL -> SpecGraphConv with Learning Laplacian
-    This SGC_LL layer is based on SpecGraphConv layer but it added the learning module for Laplacian matrix for each
-    input graph in batch.
-    Basically it gives the metric learning variable W to for dist(x,u) = sqrt((x-u)^T W W^T (x-u))
-    W is added to trainable variable set and let it updated along with other parameters.
-    """
-    def __init__(self,
-                 output_dim,
-                 input_dim,
-                 batch_size,
-                 activation='relu',
-                 dropout=None,
-                 K=2,
-                 save_lap=False,
-                 **kwargs):
-
-        super(SGC_LL, self).__init__(**kwargs)
-        self.dropout = dropout
-        self.activation = activations.get(activation)
-
-        self.batch_size = batch_size
-        # self.sparse_inputs = True
-        self.nb_filter = output_dim
-        self.n_atom_feature = input_dim
-        self.vars = {}
-        self.bias = True
-        self.K = K
-        self.save_lap = save_lap    # if True, save the Laplacian matrix of this layer
-        self.early_laps = None
+class SGC_LL_Reslap(SGC_LL):
 
     def build(self):
         """
@@ -72,8 +30,13 @@ class SGC_LL(Layer):
                 This matrix transform the orginal data features of n_atom_features length
             """
             self.vars['M_L'] = glorot([self.n_atom_feature, self.n_atom_feature], name='Maha_dist')
+
+            # leaky ReLu alpha
             self.vars['alpha'] = tf.get_variable('alpha', (1,), initializer=tf.constant_initializer(1.0),
                                                  dtype=tf.float32)
+            # weight on Laplacian from previous layer
+            self.vars['beta'] = tf.get_variable('beta', (1,), initializer=tf.constant_initializer(1.0),
+                                                dtype=tf.float32)
 
     def call(self, x):
         """
@@ -89,17 +52,21 @@ class SGC_LL(Layer):
         # order: atom_feature(list, batch_size * 1), Laplacian(list, batch_size * 1), mol_slice, L_slice
         atom_features = x[:self.batch_size]
         Laplacian = x[self.batch_size: self.batch_size * 2]
-        mol_slice = x[-2]
-        L_slice = x[-1]
+        mol_slice = x[self.batch_size * 2]
+        L_slice = x[self.batch_size * 2 + 1]
+        if len(x) > 3 * self.batch_size:
+            self.early_laps = x[-self.batch_size:]
 
         "spectral convolution and Laplacian update"
-        atom_features, L_updated, W_updated = self.specgraph_LL(atom_features,
-                                                     Laplacian,
-                                                     mol_slice,
-                                                     L_slice,
-                                                     self.vars,
-                                                     self.K,
-                                                     self.n_atom_feature)
+        atom_features, L_updated, W_updated, L_sum_updated = self.specgraph_LL_reslap(
+                                                                atom_features,
+                                                                Laplacian,
+                                                                mol_slice,
+                                                                L_slice,
+                                                                self.early_laps,
+                                                                self.vars,
+                                                                self.K,
+                                                                self.n_atom_feature)
 
         # activation
         activated_atoms = []
@@ -109,9 +76,17 @@ class SGC_LL(Layer):
                 activated_mol = Dropout(self.dropout)(activated_mol)
             activated_atoms.append(activated_mol)
 
-        return activated_atoms, L_updated, W_updated
+        return activated_atoms, L_updated, W_updated, L_sum_updated
 
-    def specgraph_LL(self, atoms, Laplacian, mol_slice, L_slice, vars, K, Fin):
+    def specgraph_LL_reslap(self,
+                            atoms,
+                            Laplacian,
+                            mol_slice,
+                            L_slice,
+                            early_Laps,
+                            vars,
+                            K,
+                            Fin):
         """
         This function perform :1) learn Laplacian with updated Maha weight M_L 2) do chebyshev approx spectral convolution
         Args:
@@ -127,14 +102,15 @@ class SGC_LL(Layer):
         x_conved = []
         M_L = vars['M_L']
         alpha = vars['alpha']
+        beta = vars['beta']
         res_L_updated = []
         res_W_updated = []  # similarity matrix
+        L_sum_updated = []
         for mol_id in range(batch_size):
             x = atoms[mol_id]  # max_atom x Fin
             L = Laplacian[mol_id]  # max_atom x max_atom
             max_atom = L.get_shape().as_list()[0]  # dtype=int
 
-            # TODO- x(L)_indices should be tensor made in bacth_ro_feed by [start index for all dimension] and [size for all dimension]
             x_indices = tf.gather(mol_slice, tf.pack([mol_id]))  # n_atom for this mol * feature number (,2) -> shape
             L_indices = tf.gather(L_slice, tf.pack([mol_id]))
             x = tf.slice(x, tf.pack([0, 0]), tf.reduce_sum(x_indices, axis=0))  # M x Fin, start=[0,0] size = [M, -1]
@@ -196,15 +172,19 @@ class SGC_LL(Layer):
                 return L.astype(np.float32), adj_m.astype(np.float32)
 
             res_L, res_W = tf.py_func(func, [x, M_L], [tf.float32, tf.float32])  # additional Laplacian Matrix
-            # res_L = tf.clip_by_average_norm(res_L, 1.0)
+            res_L = tf.clip_by_norm(res_L, 1.0)
             res_L = activations.relu(res_L, alpha=alpha)
             # res_L_updated.append(res_L)
-            res_W_updated.append(res_W)
-            L_all = tf.add(res_L, LL)  # final Lapalcian
+            if early_Laps:
+                prv_L = early_Laps[mol_id]
+                L_all = res_L + LL + tf.multiply(prv_L, beta)  # final Lapalcian
+            else:
+                L_all = res_L + LL
             L_all = tf.clip_by_norm(L_all, 1.0)
             L_all = activations.relu(L_all, alpha=alpha)
-            res_L_updated.append(L_all)
-
+            res_L_updated.append(res_L)
+            res_W_updated.append(res_W)
+            L_sum_updated.append(L_all)
             # Transform to Chebyshev basis
             x0 = x
             x = tf.expand_dims(x0, 0)  # x-> 1 x M x Fin
@@ -236,6 +216,4 @@ class SGC_LL(Layer):
             x = tf.pad(x, paddings=[[0, tf.subtract(tf.constant(max_atom), M)], [0, 0]],
                        mode="CONSTANT")  # [0, L.get_shape().as_list()[0] is max_atom
             x_conved.append(x)  # M x nb_filter(Fout)
-        return x_conved, res_L_updated, res_W_updated
-
-
+        return x_conved, res_L_updated, res_W_updated, L_sum_updated

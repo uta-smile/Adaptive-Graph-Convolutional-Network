@@ -94,6 +94,7 @@ def switch(condition, then_expression, else_expression):
     x = tf.cond(condition, then_expression_fn, else_expression_fn)
     return x
 
+
 def ones(shape, dtype=None, name=None):
     """Instantiates an all-ones tensor variable and returns it.
 
@@ -748,9 +749,9 @@ def fully_connected_layer(tensor,
     if weight_init is None:
         num_features = n_feature
         # num_features = tensor.get_shape()[-1].value
-        weight_init = tf.truncated_normal([num_features, size], stddev=0.01)
+        weight_init = tf.truncated_normal([num_features, size], dtype=tf.float32, stddev=0.01)
     if bias_init is None:
-        bias_init = tf.zeros([size])
+        bias_init = tf.zeros([size], dtype=tf.float32)
 
     with tf.name_scope(name, 'fully_connected', [tensor]):
         w = tf.Variable(weight_init, name='w', dtype=tf.float32)

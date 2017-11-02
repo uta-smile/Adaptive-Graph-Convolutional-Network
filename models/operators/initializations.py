@@ -110,11 +110,11 @@ def identity(shape, scale=1, name=None):
 
 
 def zero(shape, name=None):
-    return tf.Variable(tf.zeros(shape), dtype=tf.float32, name=name)
+    return tf.Variable(tf.zeros(shape, dtype=tf.float32), dtype=tf.float32, name=name)
 
 
 def one(shape, name=None):
-    return tf.Variable(tf.ones(shape), dtype=tf.float32, name=name)
+    return tf.Variable(tf.ones(shape, dtype=tf.float32), dtype=tf.float32, name=name)
 
 
 def get(identifier, **kwargs):

@@ -9,6 +9,7 @@ import os
 import numpy as np
 import tensorflow as tf
 import tempfile
+import matplotlib.pyplot as plt
 
 from AGCN.utils.save import log
 from AGCN.models.tf_modules.basic_model import Model
@@ -61,7 +62,7 @@ class MultitaskGraphClassifier(Model):
                  final_loss='cross_entropy',
                  learning_rate=.001,
                  optimizer_type="adam",
-                 learning_rate_decay_time=50,
+                 learning_rate_decay_time=1000,
                  beta1=.9,
                  beta2=.999,
                  pad_batches=True,
@@ -101,11 +102,14 @@ class MultitaskGraphClassifier(Model):
             self.loss_op = self.add_training_loss(self.final_loss, self.logits)     # fit
             self.outputs = self.add_softmax(self.logits)    # predict
 
-            "L_set give the tensor of updated Laplacian of each convolution layer in model"
-            if type(self.model).__name__ in ['SequentialGraphMol', 'ResidualGraphMol', 'DenseConnectedGraph']:
-                self.L_op = self.model.return_L_set()
-            else:
-                self.L_op = None
+            assert type(self.model).__name__ in ['SequentialGraphMol',
+                                                 'ResidualGraphMol',
+                                                 'ResidualGraphMolResLap',
+                                                 'DenseConnectedGraph']
+            self.res_L_op = self.model.get_resL_set()
+            self.res_W_op = self.model.get_resW_set()
+            if type(self.model).__name__ in ['ResidualGraphMolResLap']:
+                self.L_op = self.model.get_laplacian()
 
             self.learning_rate = learning_rate
             self.T = learning_rate_decay_time
@@ -156,9 +160,9 @@ class MultitaskGraphClassifier(Model):
 
         n_samples = len(X_b)
         if y_b is None:
-            y_b = np.zeros((n_samples, self.n_tasks))
+            y_b = np.zeros((n_samples, self.n_tasks), dtype=np.bool)
         if w_b is None:
-            w_b = np.zeros((n_samples, self.n_tasks))
+            w_b = np.zeros((n_samples, self.n_tasks), dtype=np.float32)
         targets_dict = {self.label_placeholder: y_b, self.weight_placeholder: w_b}
 
         # Get graph information
@@ -228,25 +232,27 @@ class MultitaskGraphClassifier(Model):
             with self.sess.as_default():
                 for epoch in range(nb_epoch):
                     log("Starting epoch %d" % epoch, self.verbose)
-                    # print(self.loss_op.eval())
 
-                    for batch_num, (X_b, y_b, w_b, ids_b) in enumerate(train_data.iterbatches(
-                            self.batch_size, pad_batches=self.pad_batches)):
+                    for batch_num, (X_b, y_b, w_b, ids_b) in enumerate(
+                            train_data.iterbatches(self.batch_size, pad_batches=self.pad_batches)):
 
-                        # if batch_num % log_every_N_batches == 0:
-                        #     log("On batch %d" % batch_num, self.verbose)
-
+                        print(batch_num)
                         """ these network models contains SGC_LL layer,
                         which also return updated residual Laplacian"""
-                        _, loss_val, L_update = self.sess.run(
-                            [self.train_op, self.loss_op, self.L_op],
-                            feed_dict=self.construct_feed_dict(X_b, y_b=y_b, w_b=w_b))
+                        if type(self.model).__name__ in ['ResidualGraphMolResLap']:
+                            _, loss_val, res_L, res_W, L = self.sess.run(
+                                [self.train_op, self.loss_op, self.res_L_op, self.res_W_op, self.L_op],
+                                feed_dict=self.construct_feed_dict(X_b, y_b=y_b, w_b=w_b))
+                        else:
+                            _, loss_val, res_L, res_W = self.sess.run(
+                                [self.train_op, self.loss_op, self.res_L_op, self.res_W_op],
+                                feed_dict=self.construct_feed_dict(X_b, y_b=y_b, w_b=w_b))
 
                         if batch_num % 10 == 0:
                             print('loss = ' + str(loss_val))
                             loss_curve.append(loss_val)
-
-                        self.watch_batch(X_b, ids_b, L_update)
+                        # if epoch == 10:
+                            # self.watch_batch(X_b, ids_b, res_L, L)
 
                     if epoch % 5 == 0:
                         scores = self.evaluate(val_data, metrics, transformers)
@@ -258,7 +264,15 @@ class MultitaskGraphClassifier(Model):
     def watch_batch(self, X_b, ids_b, L_update):
         # visualize the intrinsic Laplacian and residual Laplacian updated during training
         """watch on specific group of samples, each epoch display once"""
-        # print ("starting visualizing")
+        # test if length of L_update == batch size * SGC layer number
+        assert len(L_update) % self.batch_size == 0
+        conv_layer_n = int(len(L_update)/self.batch_size)
+        all_L = np.asarray(L_update).reshape((conv_layer_n, self.batch_size)).T
+        shape = all_L.size
+        for graph in X_b:
+            X = graph.node_features
+
+        print(shape)
 
     def save(self):
         """
