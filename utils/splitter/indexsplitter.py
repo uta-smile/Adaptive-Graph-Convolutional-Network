@@ -11,9 +11,9 @@ class IndexSplitter(Splitter):
   def split(self,
             dataset,
             seed=None,
-            frac_train=.5,
-            frac_valid=.2,
-            frac_test=.3,
+            frac_train=.8,
+            frac_valid=.1,
+            frac_test=.1,
             log_every_n=None):
     """
     Splits internal compounds into train/validation/test in provided order.

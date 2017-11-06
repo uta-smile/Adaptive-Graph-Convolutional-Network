@@ -28,7 +28,7 @@ class MultitaskGraphRegressor(Model):
                  final_loss='weighted_L2',
                  learning_rate=.001,
                  optimizer_type="adam",
-                 learning_rate_decay_time=1000,
+                 learning_rate_decay_time=50,
                  beta1=.9,
                  beta2=.999,
                  pad_batches=True,
@@ -64,12 +64,14 @@ class MultitaskGraphRegressor(Model):
             self.loss_op = self.add_training_loss(self.final_loss, self.outputs)
 
             assert type(self.model).__name__ in ['SequentialGraphMol',
-                                             'ResidualGraphMol',
-                                             'ResidualGraphMolResLap',
-                                             'DenseConnectedGraph']
+                                                 'ResidualGraphMol',
+                                                 'ResidualGraphMolResLap',
+                                                 'DenseConnectedGraph',
+                                                 'DenseConnectedGraphResLap',
+                                                 ]
             self.res_L_op = self.model.get_resL_set()
             self.res_W_op = self.model.get_resW_set()
-            if type(self.model).__name__ in ['ResidualGraphMolResLap']:
+            if type(self.model).__name__ in ['ResidualGraphMolResLap', 'DenseConnectedGraphResLap']:
                 self.L_op = self.model.get_laplacian()
 
             self.learning_rate = learning_rate
@@ -195,10 +197,10 @@ class MultitaskGraphRegressor(Model):
                     for batch_num, (X_b, y_b, w_b, ids_b) in enumerate(
                             train_data.iterbatches(self.batch_size, pad_batches=self.pad_batches)):
 
-                        print(batch_num)
+                        # print(batch_num)
                         """ these network models contains SGC_LL layer,
                         which also return updated residual Laplacian"""
-                        if type(self.model).__name__ in ['ResidualGraphMolResLap']:
+                        if type(self.model).__name__ in ['ResidualGraphMolResLap', 'DenseConnectedGraphResLap']:
                             _, loss_val, res_L, res_W, L = self.sess.run(
                                 [self.train_op, self.loss_op, self.res_L_op, self.res_W_op, self.L_op],
                                 feed_dict=self.construct_feed_dict(X_b, y_b=y_b, w_b=w_b))

@@ -48,29 +48,29 @@ class BlockEnd(Layer):
         # Extract graph topology
         # here because we use GraphTopologyMol, feed_dict -> x
         # order: atom_feature(list, batch_size * 1), Laplacian(list, batch_size * 1), mol_slice, L_slice
-        atom_features = x[:self.batch_size]
-        mol_slice = x[self.batch_size]
-        residual_features = x[self.batch_size + 1:]
+        node_features = x['node_features']
+        mol_slice = x['data_slice']
+        residual_features = x['block_outputs']  # residual activations from last block
 
         "add saved last block graph atom features"
-        atom_features_add_res = self.add_residuals(
-                                            atom_features,
+        node_features = self.add_residuals(
+                                            node_features,
                                             mol_slice,
                                             residual_features,
                                             self.vars)
 
         # activation
-        activated_atoms = map(lambda s: self.activation(s), atom_features_add_res)
+        activated_nodes = map(lambda s: self.activation(s), node_features)
 
-        return activated_atoms
+        return activated_nodes
 
-    def add_residuals(self, features, mol_slice, residual_features, vars):
-        assert len(features) == len(residual_features)
+    def add_residuals(self, node_features, mol_slice, residual_features, vars):
+        assert len(node_features) == len(residual_features)
         x_add_res = []
         w = vars['weight']  # transform feature dimension between x_res and x
 
         for graph_id in range(self.batch_size):
-            x = features[graph_id]  # max_atom x Fin
+            x = node_features[graph_id]  # max_atom x Fin
             x_res = residual_features[graph_id]
             max_atom = self.max_atom
 

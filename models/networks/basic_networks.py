@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from time import gmtime, strftime
 
 from AGCN.models.tf_modules.tf_graphs import SequentialGraphMol
-from AGCN.models.layers import DenseMol, SGC_LL, GraphGatherMol, GraphPoolMol
+from AGCN.models.layers import DenseMol, SGC_LL, GraphGatherMol, GraphPoolMol, BatchNormalization
 from AGCN.models.tf_modules import MultitaskGraphClassifier, MultitaskGraphRegressor
 
 
@@ -121,6 +121,7 @@ class SimpleAGCN(Network):
         # self.graph_model.add(GraphPoolMol(batch_size))
         self.graph_model.add(SGC_LL(n_filters_2, n_filters_1, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
+
         self.graph_model.add(SGC_LL(n_filters_3, n_filters_2, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
 

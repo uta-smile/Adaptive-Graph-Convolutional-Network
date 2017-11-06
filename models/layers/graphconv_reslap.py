@@ -14,6 +14,10 @@ from AGCN.models.layers.graphconv import glorot, zeros
 
 class SGC_LL_Reslap(SGC_LL):
 
+    def __init__(self, *args, **kwargs):
+        super(SGC_LL_Reslap, self).__init__(*args, **kwargs)
+        self.early_laps = None
+
     def build(self):
         """
         differnt from build in GraphCov here self.vars['bias'] \[weights_1,2,] represent the W_list and b_list
@@ -50,16 +54,22 @@ class SGC_LL_Reslap(SGC_LL):
         # Extract graph topology
         # here because we use GraphTopologyMol, feed_dict -> x
         # order: atom_feature(list, batch_size * 1), Laplacian(list, batch_size * 1), mol_slice, L_slice
-        atom_features = x[:self.batch_size]
-        Laplacian = x[self.batch_size: self.batch_size * 2]
-        mol_slice = x[self.batch_size * 2]
-        L_slice = x[self.batch_size * 2 + 1]
-        if len(x) > 3 * self.batch_size:
-            self.early_laps = x[-self.batch_size:]
+        # atom_features = x[:self.batch_size]
+        # Laplacian = x[self.batch_size: self.batch_size * 2]
+        # mol_slice = x[self.batch_size * 2]
+        # L_slice = x[self.batch_size * 2 + 1]
+        # if len(x) > 3 * self.batch_size:
+        #     self.early_laps = x[-self.batch_size:]
+
+        node_features = x['node_features']
+        Laplacian = x['original_laplacian']     # data's original Laplacian
+        mol_slice = x['data_slice']
+        L_slice = x['lap_slice']
+        self.early_laps = x['res_lap']  # residual Laplacian from previous layers
 
         "spectral convolution and Laplacian update"
         atom_features, L_updated, W_updated, L_sum_updated = self.specgraph_LL_reslap(
-                                                                atom_features,
+                                                                node_features,
                                                                 Laplacian,
                                                                 mol_slice,
                                                                 L_slice,
@@ -79,7 +89,7 @@ class SGC_LL_Reslap(SGC_LL):
         return activated_atoms, L_updated, W_updated, L_sum_updated
 
     def specgraph_LL_reslap(self,
-                            atoms,
+                            node_features,
                             Laplacian,
                             mol_slice,
                             L_slice,
@@ -98,7 +108,7 @@ class SGC_LL_Reslap(SGC_LL):
 
         Returns: list of atoms features without non-linear
         """
-        batch_size = len(atoms)
+        batch_size = len(node_features)
         x_conved = []
         M_L = vars['M_L']
         alpha = vars['alpha']
@@ -107,7 +117,7 @@ class SGC_LL_Reslap(SGC_LL):
         res_W_updated = []  # similarity matrix
         L_sum_updated = []
         for mol_id in range(batch_size):
-            x = atoms[mol_id]  # max_atom x Fin
+            x = node_features[mol_id]  # max_atom x Fin
             L = Laplacian[mol_id]  # max_atom x max_atom
             max_atom = L.get_shape().as_list()[0]  # dtype=int
 
@@ -141,14 +151,14 @@ class SGC_LL_Reslap(SGC_LL):
                         D[i].append(value)
                 """ W - similarity matrix """
                 W = np.asarray(D).astype(np.float32)
-
+                adj_m = W
                 """normalized adjacency matrix """
-                W_temp = W + np.eye(W.shape[0])     # W_temp o get the normalized adj_m
-                rowsum = W_temp.sum(axis=0)
-                d_inv_sqrt = np.power(rowsum, -0.5).flatten()
-                d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-                d_mat_inv_sqrt = np.diag(d_inv_sqrt)
-                adj_m = W.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)
+                # W_temp = W + np.eye(W.shape[0])     # W_temp o get the normalized adj_m
+                # rowsum = W_temp.sum(axis=0)
+                # d_inv_sqrt = np.power(rowsum, -0.5).flatten()
+                # d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+                # d_mat_inv_sqrt = np.diag(d_inv_sqrt)
+                # adj_m = W.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)
 
                 """sparsify the graph"""
                 # threshold = np.mean(adj_m)
@@ -179,6 +189,7 @@ class SGC_LL_Reslap(SGC_LL):
                 prv_L = early_Laps[mol_id]
                 L_all = res_L + LL + tf.multiply(prv_L, beta)  # final Lapalcian
             else:
+                """ early_laps is None, it means no preceding residual Laplacians"""
                 L_all = res_L + LL
             L_all = tf.clip_by_norm(L_all, 1.0)
             L_all = activations.relu(L_all, alpha=alpha)

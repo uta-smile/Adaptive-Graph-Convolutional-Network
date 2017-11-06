@@ -43,7 +43,13 @@ class SequentialGraphMol(object):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
                 if type(layer).__name__ in ['SGC_LL']:
-                    self.output, res_L, res_W = layer(self.output + self.graph_topology.get_topology_placeholders())
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+
+                    self.output, res_L, res_W = layer(input)
                     self.res_L_set.extend(res_L)
                     self.res_W_set.extend(res_W)
                 else:
@@ -94,16 +100,26 @@ class ResidualGraphMol(SequentialGraphMol):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
                 if type(layer).__name__ in ['SGC_LL']:
-                    self.output, res_L, res_W = layer(self.output + self.graph_topology.get_topology_placeholders())
+
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+
+                    self.output, res_L, res_W = layer(input)
                     self.res_L_set.extend(res_L)
                     self.res_W_set.extend(res_W)
                     if 'SGC_LL' not in map(lambda l: type(l).__name__, self.layers):
-                        # first SGC_LL layer
+                        # first SGC_LL layer, use it initial block residual
                         self.block_outputs.append(self.output)
                 elif type(layer).__name__ in ['BlockEnd']:  # BlockEnd layer add saved last block output
-                    self.output = layer(
-                        self.output + [self.graph_topology.get_dataslice_placeholders()] + self.block_outputs[-1]
-                    )
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['block_outputs'] = self.block_outputs[-1]
+
+                    self.output = layer(input)
                     self.block_outputs.append(self.output)
                 else:
                     self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
@@ -132,10 +148,14 @@ class ResidualGraphMolResLap(SequentialGraphMol):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
                 if type(layer).__name__ in ['SGC_LL_Reslap']:
-                    self.output, res_L, res_W, L = layer(
-                        self.output + self.graph_topology.get_topology_placeholders() + \
-                        self.stack_laplacians[-self.batch_size:]
-                    )
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+                    input['res_lap'] = self.stack_laplacians[-self.batch_size:]
+                    self.output, res_L, res_W, L = layer(input)
+
                     self.res_L_set.extend(res_L)
                     self.res_W_set.extend(res_W)
 
@@ -146,9 +166,12 @@ class ResidualGraphMolResLap(SequentialGraphMol):
                         self.stack_laplacians.extend(L)     # extend as a list, whose length is batch size
 
                 elif type(layer).__name__ in ['BlockEnd']:  # BlockEnd layer add saved last block output
-                    self.output = layer(
-                        self.output + [self.graph_topology.get_dataslice_placeholders()] + self.block_outputs[-1]
-                    )
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['block_outputs'] = self.block_outputs[-1]
+
+                    self.output = layer(input)
                     self.block_outputs.append(self.output)
                 else:
                     self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
@@ -162,15 +185,23 @@ class ResidualGraphMolResLap(SequentialGraphMol):
 
 
 class DenseConnectedGraph(SequentialGraphMol):
-
-    def __init__(self, *args, **kwargs):
+    """
+    This graph network, is compatible with SGC_LL, no residual graph stacked
+    """
+    def __init__(self, n_blocks, *args, **kwargs):
         super(DenseConnectedGraph, self).__init__(*args, **kwargs)
-        # save preceding activations within the dense block
+        # save preceding activations within the same dense block
         self.inblock_activations = {}
-        # save preceding blocks' outputs
+        self.inblock_activations_dim = {}   # save the activation dimension of preceding layers
+        # save preceding blocks' outputs before this block
         self.block_outputs = []
-        self.block_layers = []
-        self.current_block_id = 1   # used in construct blocks
+        self.block_outputs_dim = []     # save the output dimension of preceding blocks
+        self.current_block_id = 0   # used in construct blocks
+
+        for b_id in range(n_blocks):
+            # one block may contain many layers , use list
+            self.inblock_activations[b_id] = []
+            self.inblock_activations_dim[b_id] = []
 
     """
     tf graph for densely connected network on graphs
@@ -184,28 +215,125 @@ class DenseConnectedGraph(SequentialGraphMol):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
                 if type(layer).__name__ in ['SGC_LL']:
-                    self.output, res_L = layer(self.output + self.graph_topology.get_topology_placeholders())
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+
+                    self.output, res_L, res_W = layer(input)
                     self.res_L_set.extend(res_L)
+                    self.res_W_set.extend(res_W)
 
                     """add activation to dict"""
-
-                    # if no dense net block saved, current block_id = 1
-                    if self.current_block_id not in self.inblock_activations:
-                        self.inblock_activations[self.current_block_id] = self.output
-                    else:
+                    if layer.save_output:
                         self.inblock_activations[self.current_block_id] += self.output
+                        self.inblock_activations_dim[self.current_block_id] += [layer.nb_filter]
 
                 elif type(layer).__name__ in ['DenseBlockEnd']:  # BlockEnd layer add saved last block output
-                    self.output = layer(
-                        self.output + [self.graph_topology.get_dataslice_placeholders()] +
-                        self.inblock_activations[self.current_block_id] + self.block_outputs
-                    )
+
+                    assert len(self.inblock_activations[layer.block_id]) > 0
+                    input = dict()
+                    input['node_features'] = self.output
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['inblock_activations'] = self.inblock_activations[layer.block_id]
+                    input['inblock_activations_dim'] = self.inblock_activations_dim[layer.block_id]
+                    input['block_outputs'] = self.block_outputs
+                    input['block_outputs_dim'] = self.block_outputs_dim
+
+                    self.output = layer(input)
+                    # self.output = layer(
+                    #     self.output + [self.graph_topology.get_dataslice_placeholders()] +
+                    #     self.inblock_activations[layer.block_id] + self.block_outputs +
+                    #     self.inblock_activations_dim[layer.block_id] + self.block_outputs_dim
+                    # )
                     self.block_outputs += self.output
-                    self.block_layers.append(layer)
+                    self.block_outputs_dim += [layer.output_n_features]
                     self.current_block_id += 1
+
                 else:
                     self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
             else:
                 self.output = layer(self.output)
             # Add layer to the layer list
             self.layers.append(layer)
+
+
+class DenseConnectedGraphResLap(SequentialGraphMol):
+    """
+       This graph network, is compatible with SGC_LL, no residual graph stacked
+       """
+    def __init__(self, n_blocks, *args, **kwargs):
+        super(DenseConnectedGraphResLap, self).__init__(*args, **kwargs)
+        # save preceding activations within the same dense block
+        self.inblock_activations = {}
+        self.inblock_activations_dim = {}  # save the activation dimension of preceding layers
+        # save preceding blocks' outputs before this block
+        self.block_outputs = []
+        self.block_outputs_dim = []  # save the output dimension of preceding blocks
+        self.current_block_id = 0  # used in construct blocks
+
+        for b_id in range(n_blocks):
+            # one block may contain many layers , use list
+            self.inblock_activations[b_id] = []
+            self.inblock_activations_dim[b_id] = []
+
+        self.stack_laplacians = []
+
+    def add(self, layer):
+        """Adds a new layer to model."""
+        with self.graph.as_default():
+            # For graphical layers, add connectivity placeholders
+            if type(layer).__name__ in ['GraphGatherMol', 'GraphPoolMol', 'SGC_LL_Reslap', 'DenseBlockEnd']:
+                if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
+                    assert self.layers[-1].__name__ != "GraphGatherMol", \
+                        'Cannot use GraphConv or GraphGather layers after a GraphGather'
+                if type(layer).__name__ in ['SGC_LL_Reslap']:
+                    input = dict()
+                    input['node_features'] = self.output   # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+                    input['res_lap'] = self.stack_laplacians[-self.batch_size:]
+
+                    # self.output, res_L, res_W, L = layer(
+                    #     self.output + self.graph_topology.get_topology_placeholders() +
+                    #     self.stack_laplacians[-self.batch_size:]
+                    # )
+                    self.output, res_L, res_W, L = layer(input)
+                    self.res_L_set.extend(res_L)
+                    self.res_W_set.extend(res_W)
+
+                    """add activation to dict"""
+                    if layer.save_output:
+                        self.inblock_activations[self.current_block_id] += self.output
+                        self.inblock_activations_dim[self.current_block_id] += [layer.nb_filter]
+                    if layer.save_lap:  # save the laplacian matrix
+                        self.stack_laplacians.extend(L)  # extend as a list, whose length is batch size
+
+                elif type(layer).__name__ in ['DenseBlockEnd']:  # BlockEnd layer add saved last block output
+
+                    assert len(self.inblock_activations[layer.block_id]) > 0
+                    input = dict()
+                    input['node_features'] = self.output
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['inblock_activations'] = self.inblock_activations[layer.block_id]
+                    input['inblock_activations_dim'] = self.inblock_activations_dim[layer.block_id]
+                    input['block_outputs'] = self.block_outputs
+                    input['block_outputs_dim'] = self.block_outputs_dim
+
+                    self.output = layer(input)
+                    self.block_outputs += self.output
+                    self.block_outputs_dim += [layer.output_n_features]
+                    self.current_block_id += 1
+
+                else:
+                    self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
+            else:
+                self.output = layer(self.output)
+            # Add layer to the layer list
+            self.layers.append(layer)
+
+    def get_laplacian(self):
+        return self.stack_laplacians
+

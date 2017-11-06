@@ -35,7 +35,7 @@ tox21_loader.dataset_class = 'chemistry'
 tox21_loader.dataset_name = 'tox21'
 tox21_loader.file_name = 'tox21.csv.gz'
 tox21_loader.smiles_filed = 'smiles'
-tox21_loader.transformer = 'balancing'
+tox21_loader.transformer = 'balancing_w'
 loaderconfig_dict['tox21'] = tox21_loader
 
 
@@ -47,7 +47,7 @@ delaney_loader.dataset_class = 'chemistry'
 delaney_loader.dataset_name = 'delaney'
 delaney_loader.file_name = 'delaney-processed.csv'
 delaney_loader.smiles_filed = 'smiles'
-delaney_loader.transformer = 'normalization'
+delaney_loader.transformer = 'normalization_y'
 loaderconfig_dict['delaney'] = delaney_loader
 
 
@@ -69,7 +69,7 @@ nci_loader.dataset_class = 'chemistry'
 nci_loader.dataset_name = 'nci'
 nci_loader.file_name = 'nci_unique.csv'
 nci_loader.smiles_filed = 'smiles'
-nci_loader.transformer = 'normalization'
+nci_loader.transformer = 'normalization_y'
 
 loaderconfig_dict['nci'] = nci_loader
 
@@ -80,7 +80,7 @@ clintox_loader.dataset_class = 'chemistry'
 clintox_loader.dataset_name = 'clintox'
 clintox_loader.file_name = 'clintox.csv.gz'
 clintox_loader.smiles_filed = 'smiles'
-clintox_loader.transformer = 'balancing'
+clintox_loader.transformer = 'balancing_w'
 
 loaderconfig_dict['clintox'] = clintox_loader
 
@@ -91,7 +91,7 @@ sider_loader.dataset_class = 'chemistry'
 sider_loader.dataset_name = 'sider'
 sider_loader.file_name = 'sider.csv.gz'
 sider_loader.smiles_filed = 'smiles'
-sider_loader.transformer = 'normalization'
+sider_loader.transformer = 'normalization_w'
 loaderconfig_dict['sider'] = sider_loader
 
 
@@ -101,7 +101,7 @@ toxcast_loader.dataset_class = 'chemistry'
 toxcast_loader.dataset_name = 'toxcast'
 toxcast_loader.file_name = 'toxcast_data.csv.gz'
 toxcast_loader.smiles_filed = 'smiles'
-toxcast_loader.transformer = 'balancing'
+toxcast_loader.transformer = 'balancing_w'
 
 loaderconfig_dict['toxcast'] = toxcast_loader
 
@@ -115,7 +115,7 @@ sydney_loader.tasks = sydney_tasks
 sydney_loader.dataset_class = 'pointcloud'
 sydney_loader.dataset_name = 'sydney'
 sydney_loader.file_name = 'objects'
-sydney_loader.transformer = 'balancing'
+sydney_loader.transformer = 'balancing_y'
 
 loaderconfig_dict['sydney'] = sydney_loader
 
@@ -129,7 +129,7 @@ fashion_loader.tasks = fashionimage_tasks
 fashion_loader.dataset_class = 'images'
 fashion_loader.dataset_name = 'fashion'
 fashion_loader.file_name = 'fashion'
-fashion_loader.transformer = 'balancing'
+fashion_loader.transformer = 'balancing_y'
 
 loaderconfig_dict['fashion'] = fashion_loader
 
@@ -143,6 +143,6 @@ cifar_loader.tasks = cifarimage_tasks
 cifar_loader.dataset_class = 'images'
 cifar_loader.dataset_name = 'cifar'
 cifar_loader.file_name = 'cifar10'
-cifar_loader.transformer = 'balancing'
+cifar_loader.transformer = 'balancing_y'
 
 loaderconfig_dict['cifar10'] = cifar_loader

@@ -40,6 +40,7 @@ class SGC_LL(Layer):
                  dropout=None,
                  K=2,
                  save_lap=False,
+                 save_output=False,
                  **kwargs):
 
         super(SGC_LL, self).__init__(**kwargs)
@@ -55,6 +56,7 @@ class SGC_LL(Layer):
         self.K = K
         self.save_lap = save_lap    # if True, save the Laplacian matrix of this layer
         self.early_laps = None
+        self.save_output = save_output  # if yes, save it to graph model and use later as residuals
 
     def build(self):
         """
@@ -87,31 +89,37 @@ class SGC_LL(Layer):
         # Extract graph topology
         # here because we use GraphTopologyMol, feed_dict -> x
         # order: atom_feature(list, batch_size * 1), Laplacian(list, batch_size * 1), mol_slice, L_slice
-        atom_features = x[:self.batch_size]
-        Laplacian = x[self.batch_size: self.batch_size * 2]
-        mol_slice = x[-2]
-        L_slice = x[-1]
+        # atom_features = x[:self.batch_size]
+        # Laplacian = x[self.batch_size: self.batch_size * 2]
+        # mol_slice = x[-2]
+        # L_slice = x[-1]
+
+        node_features = x['node_features']
+        Laplacian = x['original_laplacian']
+        mol_slice = x['data_slice']
+        L_slice = x['lap_slice']
 
         "spectral convolution and Laplacian update"
-        atom_features, L_updated, W_updated = self.specgraph_LL(atom_features,
-                                                     Laplacian,
-                                                     mol_slice,
-                                                     L_slice,
-                                                     self.vars,
-                                                     self.K,
-                                                     self.n_atom_feature)
+        node_features, L_updated, W_updated = self.specgraph_LL(
+                                                        node_features,
+                                                        Laplacian,
+                                                        mol_slice,
+                                                        L_slice,
+                                                        self.vars,
+                                                        self.K,
+                                                        self.n_atom_feature)
 
         # activation
-        activated_atoms = []
+        activated_nodes = []
         for i in range(self.batch_size):
-            activated_mol = self.activation(atom_features[i])
+            activated_mol = self.activation(node_features[i])
             if self.dropout is not None:
                 activated_mol = Dropout(self.dropout)(activated_mol)
-            activated_atoms.append(activated_mol)
+            activated_nodes.append(activated_mol)
 
-        return activated_atoms, L_updated, W_updated
+        return activated_nodes, L_updated, W_updated
 
-    def specgraph_LL(self, atoms, Laplacian, mol_slice, L_slice, vars, K, Fin):
+    def specgraph_LL(self, node_features, Laplacian, mol_slice, L_slice, vars, K, Fin):
         """
         This function perform :1) learn Laplacian with updated Maha weight M_L 2) do chebyshev approx spectral convolution
         Args:
@@ -123,14 +131,14 @@ class SGC_LL(Layer):
 
         Returns: list of atoms features without non-linear
         """
-        batch_size = len(atoms)
+        batch_size = len(node_features)
         x_conved = []
         M_L = vars['M_L']
         alpha = vars['alpha']
         res_L_updated = []
         res_W_updated = []  # similarity matrix
         for mol_id in range(batch_size):
-            x = atoms[mol_id]  # max_atom x Fin
+            x = node_features[mol_id]  # max_atom x Fin
             L = Laplacian[mol_id]  # max_atom x max_atom
             max_atom = L.get_shape().as_list()[0]  # dtype=int
 
@@ -165,26 +173,26 @@ class SGC_LL(Layer):
                         D[i].append(value)
                 """ W - similarity matrix """
                 W = np.asarray(D).astype(np.float32)
-
+                adj_m = W
                 """normalized adjacency matrix """
-                W_temp = W + np.eye(W.shape[0])     # W_temp o get the normalized adj_m
-                rowsum = W_temp.sum(axis=0)
-                d_inv_sqrt = np.power(rowsum, -0.5).flatten()
-                d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-                d_mat_inv_sqrt = np.diag(d_inv_sqrt)
-                adj_m = W.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)
+                # W_temp = W + np.eye(W.shape[0])     # W_temp o get the normalized adj_m
+                # rowsum = W_temp.sum(axis=0)
+                # d_inv_sqrt = np.power(rowsum, -0.5).flatten()
+                # d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+                # d_mat_inv_sqrt = np.diag(d_inv_sqrt)
+                # adj_m = W.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)
 
                 """sparsify the graph"""
                 # threshold = np.mean(adj_m)
                 # adj_m = np.where(adj_m > threshold, _, 0.0)
 
                 """get the normalized Laplacian L = I - D(-0.5)^T A D(-0.5)"""
-                d = adj_m.sum(axis=0)  # degree for each atom
-                d += np.spacing(np.array(0, adj_m.dtype))   # in case some degree is 0, add -inf
-                d = np.power(d.squeeze(), -0.5).flatten()
-                D = np.diag(d)  # D^{-1/2}
-                I = np.identity(d.size, dtype=adj_m.dtype)
-                L = I - D * adj_m * D
+                d = W.sum(axis=0)  # degree for each atom
+                d += np.spacing(np.array(0, W.dtype))
+                d = 1 / np.sqrt(d)
+                D = np.diag(d.squeeze())  # D^{-1/2}
+                I = np.identity(d.size, dtype=W.dtype)
+                L = I - D * W * D
                 # L = D - adj_m
                 # if mol_id == 0:
                 #     # trace = go.Heatmap(z=L)
@@ -196,14 +204,14 @@ class SGC_LL(Layer):
                 return L.astype(np.float32), adj_m.astype(np.float32)
 
             res_L, res_W = tf.py_func(func, [x, M_L], [tf.float32, tf.float32])  # additional Laplacian Matrix
-            # res_L = tf.clip_by_average_norm(res_L, 1.0)
+            res_L = tf.clip_by_average_norm(res_L, 1.0)
             res_L = activations.relu(res_L, alpha=alpha)
             # res_L_updated.append(res_L)
             res_W_updated.append(res_W)
             L_all = tf.add(res_L, LL)  # final Lapalcian
-            L_all = tf.clip_by_norm(L_all, 1.0)
-            L_all = activations.relu(L_all, alpha=alpha)
-            res_L_updated.append(L_all)
+            # L_all = tf.clip_by_norm(L_all, 1.0)
+            # L_all = activations.relu(L_all, alpha=alpha)
+            res_L_updated.append(res_L)
 
             # Transform to Chebyshev basis
             x0 = x

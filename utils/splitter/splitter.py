@@ -49,9 +49,9 @@ class Splitter(object):
                              train_dir=None,
                              valid_dir=None,
                              test_dir=None,
-                             frac_train=.5,
-                             frac_valid=.2,
-                             frac_test=.3,
+                             frac_train=.8,
+                             frac_valid=.1,
+                             frac_test=.1,
                              seed=None,
                              log_every_n=1000,
                              verbose=True):

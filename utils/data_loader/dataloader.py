@@ -25,7 +25,8 @@ class DataLoader(object):
                  id_field=None,
                  feature=None,
                  splitter='index',
-                 transformer='normalization',
+                 split_frac=[0.8, 0.1, 0.1],
+                 transformer='normalization_w',
                  download_url=None,
                  verbose=True):
 
@@ -83,12 +84,10 @@ class DataLoader(object):
 
         "define splitter"
         self.splitter = splitter
+        self.split_frac = split_frac
 
         "define the transformer"
-        if transformer == 'normalization':
-            self.Transformer = NormalizationTransformer
-        elif transformer == 'balancing':
-            self.Transformer = BalancingTransformer
+        self.transformer_types = transformer
 
     def featurize(self, shard_size=2048):
         """
@@ -204,10 +203,27 @@ class DataLoader(object):
 
             meta_data = pickle.load(open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'rb'))
             max_atom = meta_data[0]
-            print("Balancing Data by Weight.......")
-            transformers = [
-                self.Transformer(transform_w=True, dataset=dataset)
-            ]
+
+            print("Transforming Data.")
+            if self.transformer_types == 'normalization_y':
+                transformers = [
+                    NormalizationTransformer(transform_y=True, dataset=dataset)
+                ]
+            elif self.transformer_types == 'normalization_w':
+                transformers = [
+                    NormalizationTransformer(transform_w=True, dataset=dataset)
+                ]
+            elif self.transformer_types == 'balancing_w':
+                transformers = [
+                    BalancingTransformer(transform_w=True, dataset=dataset)
+                ]
+            elif self.transformer_types == 'balancing_y':
+                transformers = [
+                    BalancingTransformer(transform_y=True, dataset=dataset)
+                ]
+            else:
+                transformers = []
+                ValueError("Transformer type Not defined!{}".format(self.transformer_types))
         else:
             print("Loading and Featurizing Data.......")
             # loader = dc.data.CSVLoader(
@@ -215,9 +231,26 @@ class DataLoader(object):
             dataset = self.featurize(shard_size=2048)
 
             print("Transforming Data.")
-            transformers = [
-                self.Transformer(transform_w=True, dataset=dataset)
-            ]
+            if self.transformer_types == 'normalization_y':
+                transformers = [
+                    NormalizationTransformer(transform_y=True, dataset=dataset)
+                ]
+            elif self.transformer_types == 'normalization_w':
+                transformers = [
+                    NormalizationTransformer(transform_w=True, dataset=dataset)
+                ]
+            elif self.transformer_types == 'balancing_w':
+                transformers = [
+                    BalancingTransformer(transform_w=True, dataset=dataset)
+                ]
+            elif self.transformer_types == 'balancing_y':
+                transformers = [
+                    BalancingTransformer(transform_y=True, dataset=dataset)
+                ]
+            else:
+                transformers = []
+                ValueError("Transformer type Not defined!{}".format(self.transformer_types))
+
             for transformer in transformers:
                 # pass dataset through maybe more than one transformer
                 dataset = transformer.transform(dataset)
@@ -250,9 +283,14 @@ class DataLoader(object):
             test_dir = os.path.join(self.processed_data_dir, 'test')
 
             print("Saving Data at %s...", self.processed_data_dir)
-            train, valid, test = splitter.train_valid_test_split(dataset,
-                                                                 train_dir=train_dir,
-                                                                 valid_dir=valid_dir,
-                                                                 test_dir=test_dir)
+            train, valid, test = splitter.train_valid_test_split(
+                dataset,
+                train_dir=train_dir,
+                valid_dir=valid_dir,
+                test_dir=test_dir,
+                frac_train=self.split_frac[0],
+                frac_valid=self.split_frac[1],
+                frac_test=self.split_frac[2],
+            )
 
         return self.tasks, (train, valid, test), transformers, max_atom

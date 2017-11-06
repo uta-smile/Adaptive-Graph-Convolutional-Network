@@ -160,3 +160,7 @@ class GraphTopologyMol(object):
 
     def get_laplacians_placeholder(self):
         return self.Laplacian_placeholder
+
+    def get_lapslice_placeholders(self):
+        return self.L_slice_placeholder
+
