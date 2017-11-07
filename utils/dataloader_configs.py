@@ -115,7 +115,7 @@ sydney_loader.tasks = sydney_tasks
 sydney_loader.dataset_class = 'pointcloud'
 sydney_loader.dataset_name = 'sydney'
 sydney_loader.file_name = 'objects'
-sydney_loader.transformer = 'balancing_y'
+sydney_loader.transformer = 'balancing_w'
 
 loaderconfig_dict['sydney'] = sydney_loader
 

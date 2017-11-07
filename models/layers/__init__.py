@@ -9,3 +9,4 @@ from AGCN.models.layers.graphgather import GraphGatherMol
 from AGCN.models.layers.graphpool import GraphPoolMol
 from AGCN.models.layers.blockend import BlockEnd
 from AGCN.models.layers.densenet_block import DenseBlockEnd
+from AGCN.models.layers.MLP import MLP

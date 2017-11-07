@@ -38,7 +38,7 @@ class SequentialGraphMol(object):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['GraphGatherMol', 'GraphPoolMol', 'SGC_LL']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
@@ -52,8 +52,15 @@ class SequentialGraphMol(object):
                     self.output, res_L, res_W = layer(input)
                     self.res_L_set.extend(res_L)
                     self.res_W_set.extend(res_W)
+
+                elif type(layer).__name__ in ['MLP']:
+                    input = dict()
+                    input['node_features'] = self.output
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    self.output = layer(input)
                 else:
                     self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
+
             else:
                 self.output = layer(self.output)
             # Add layer to the layer list
@@ -95,7 +102,7 @@ class ResidualGraphMol(SequentialGraphMol):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['GraphGatherMol', 'GraphPoolMol', 'SGC_LL', 'BlockEnd']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL', 'BlockEnd']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
@@ -113,6 +120,13 @@ class ResidualGraphMol(SequentialGraphMol):
                     if 'SGC_LL' not in map(lambda l: type(l).__name__, self.layers):
                         # first SGC_LL layer, use it initial block residual
                         self.block_outputs.append(self.output)
+
+                elif type(layer).__name__ in ['MLP']:
+                    input = dict()
+                    input['node_features'] = self.output
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    self.output = layer(input)
+
                 elif type(layer).__name__ in ['BlockEnd']:  # BlockEnd layer add saved last block output
                     input = dict()
                     input['node_features'] = self.output  # node features
@@ -121,6 +135,7 @@ class ResidualGraphMol(SequentialGraphMol):
 
                     self.output = layer(input)
                     self.block_outputs.append(self.output)
+
                 else:
                     self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
             else:
@@ -143,7 +158,7 @@ class ResidualGraphMolResLap(SequentialGraphMol):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['GraphGatherMol', 'GraphPoolMol', 'SGC_LL_Reslap', 'BlockEnd']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL_Reslap', 'BlockEnd']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
@@ -164,6 +179,11 @@ class ResidualGraphMolResLap(SequentialGraphMol):
                         self.block_outputs.append(self.output)
                     if layer.save_lap:  # save the laplacian matrix
                         self.stack_laplacians.extend(L)     # extend as a list, whose length is batch size
+                elif type(layer).__name__ in ['MLP']:
+                    input = dict()
+                    input['node_features'] = self.output
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    self.output = layer(input)
 
                 elif type(layer).__name__ in ['BlockEnd']:  # BlockEnd layer add saved last block output
                     input = dict()
@@ -210,7 +230,7 @@ class DenseConnectedGraph(SequentialGraphMol):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['GraphGatherMol', 'GraphPoolMol', 'SGC_LL', 'DenseBlockEnd']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL', 'DenseBlockEnd']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
@@ -229,6 +249,12 @@ class DenseConnectedGraph(SequentialGraphMol):
                     if layer.save_output:
                         self.inblock_activations[self.current_block_id] += self.output
                         self.inblock_activations_dim[self.current_block_id] += [layer.nb_filter]
+
+                elif type(layer).__name__ in ['MLP']:
+                    input = dict()
+                    input['node_features'] = self.output
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    self.output = layer(input)
 
                 elif type(layer).__name__ in ['DenseBlockEnd']:  # BlockEnd layer add saved last block output
 
@@ -284,7 +310,7 @@ class DenseConnectedGraphResLap(SequentialGraphMol):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['GraphGatherMol', 'GraphPoolMol', 'SGC_LL_Reslap', 'DenseBlockEnd']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL_Reslap', 'DenseBlockEnd']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
@@ -310,6 +336,12 @@ class DenseConnectedGraphResLap(SequentialGraphMol):
                         self.inblock_activations_dim[self.current_block_id] += [layer.nb_filter]
                     if layer.save_lap:  # save the laplacian matrix
                         self.stack_laplacians.extend(L)  # extend as a list, whose length is batch size
+
+                elif type(layer).__name__ in ['MLP']:
+                    input = dict()
+                    input['node_features'] = self.output
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    self.output = layer(input)
 
                 elif type(layer).__name__ in ['DenseBlockEnd']:  # BlockEnd layer add saved last block output
 
