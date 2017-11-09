@@ -19,7 +19,7 @@ class DataLoader(object):
     def __init__(self,
                  dataset_class,
                  dataset_name,
-                 file_name,
+                 file_name=None,
                  tasks=None,
                  smiles_field=None,
                  id_field=None,
@@ -35,16 +35,20 @@ class DataLoader(object):
         self.dataset_name = dataset_name    # e.g. tox21, clintox
         self.data_dir = os.path.join(os.environ["HOME"], "AGCN/data", self.dataset_class, self.dataset_name)
         self.file_name = file_name  # raw data file name, e.g clintox.csv.gz
-        self.file_dir = os.path.join(self.data_dir, self.file_name)     # raw data directory
+        if self.file_name:
+            # the data is in a file, create file_dir to use
+            self.file_dir = os.path.join(self.data_dir, self.file_name)     # raw data directory
+        else:
+            self.file_dir = None
         self.download_url = download_url
         self.processed_data_dir = os.path.join(self.data_dir, 'processed_data', self.dataset_name)
         self.verbose = verbose
 
         "confirm data exist"
-        if not os.path.exists(self.file_dir) and self.download_url is not None:
-            os.system(
-                'wget -P ' + self.data_dir + self.download_url
-            )
+        # if not os.path.exists(self.file_dir) and self.download_url is not None:
+        #     os.system(
+        #         'wget -P ' + self.data_dir + self.download_url
+        #     )
 
         "confirm processed data storage directory"
         if not os.path.exists(self.processed_data_dir):
@@ -88,6 +92,7 @@ class DataLoader(object):
 
         "define the transformer"
         self.transformer_types = transformer
+        self.transformers = []
 
     def featurize(self, shard_size=2048):
         """
@@ -205,25 +210,26 @@ class DataLoader(object):
             max_atom = meta_data[0]
 
             print("Transforming Data.")
-            if self.transformer_types == 'normalization_y':
-                transformers = [
-                    NormalizationTransformer(transform_y=True, dataset=dataset)
-                ]
-            elif self.transformer_types == 'normalization_w':
-                transformers = [
-                    NormalizationTransformer(transform_w=True, dataset=dataset)
-                ]
-            elif self.transformer_types == 'balancing_w':
-                transformers = [
-                    BalancingTransformer(transform_w=True, dataset=dataset)
-                ]
-            elif self.transformer_types == 'balancing_y':
-                transformers = [
-                    BalancingTransformer(transform_y=True, dataset=dataset)
-                ]
-            else:
-                transformers = []
-                ValueError("Transformer type Not defined!{}".format(self.transformer_types))
+            if not self.transformer_types:
+                if self.transformer_types == 'normalization_y':
+                    self.transformers += [
+                        NormalizationTransformer(transform_y=True, dataset=dataset)
+                    ]
+                elif self.transformer_types == 'normalization_w':
+                    self.transformers += [
+                        NormalizationTransformer(transform_w=True, dataset=dataset)
+                    ]
+                elif self.transformer_types == 'balancing_w':
+                    self.transformers += [
+                        BalancingTransformer(transform_w=True, dataset=dataset)
+                    ]
+                elif self.transformer_types == 'balancing_y':
+                    self.transformers += [
+                        BalancingTransformer(transform_y=True, dataset=dataset)
+                    ]
+                else:
+                    ValueError("Transformer type Not defined!{}".format(self.transformer_types))
+
         else:
             print("Loading and Featurizing Data.......")
             # loader = dc.data.CSVLoader(
@@ -231,29 +237,30 @@ class DataLoader(object):
             dataset = self.featurize(shard_size=2048)
 
             print("Transforming Data.")
-            if self.transformer_types == 'normalization_y':
-                transformers = [
-                    NormalizationTransformer(transform_y=True, dataset=dataset)
-                ]
-            elif self.transformer_types == 'normalization_w':
-                transformers = [
-                    NormalizationTransformer(transform_w=True, dataset=dataset)
-                ]
-            elif self.transformer_types == 'balancing_w':
-                transformers = [
-                    BalancingTransformer(transform_w=True, dataset=dataset)
-                ]
-            elif self.transformer_types == 'balancing_y':
-                transformers = [
-                    BalancingTransformer(transform_y=True, dataset=dataset)
-                ]
-            else:
-                transformers = []
-                ValueError("Transformer type Not defined!{}".format(self.transformer_types))
+            if not self.transformer_types:
+                if self.transformer_types == 'normalization_y':
+                    self.transformers += [
+                        NormalizationTransformer(transform_y=True, dataset=dataset)
+                    ]
+                elif self.transformer_types == 'normalization_w':
+                    self.transformers += [
+                        NormalizationTransformer(transform_w=True, dataset=dataset)
+                    ]
+                elif self.transformer_types == 'balancing_w':
+                    self.transformers += [
+                        BalancingTransformer(transform_w=True, dataset=dataset)
+                    ]
+                elif self.transformer_types == 'balancing_y':
+                    self.transformers += [
+                        BalancingTransformer(transform_y=True, dataset=dataset)
+                    ]
+                else:
+                    ValueError("Transformer type Not defined!{}".format(self.transformer_types))
 
-            for transformer in transformers:
-                # pass dataset through maybe more than one transformer
-                dataset = transformer.transform(dataset)
+            if len(self.transformers) > 0:
+                for transformer in self.transformers:
+                    # pass dataset through maybe more than one transformer
+                    dataset = transformer.transform(dataset)
 
             """max_atom is the max atom of molecule in all_dataset """
             max_atom = self.find_max_atom(dataset)
@@ -293,4 +300,4 @@ class DataLoader(object):
                 frac_test=self.split_frac[2],
             )
 
-        return self.tasks, (train, valid, test), transformers, max_atom
+        return self.tasks, (train, valid, test), self.transformers, max_atom

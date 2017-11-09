@@ -3,7 +3,7 @@
 import numpy as np
 import warnings
 from AGCN.utils.save import log
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.metrics import matthews_corrcoef
 from sklearn.metrics import recall_score
 from sklearn.metrics import accuracy_score
@@ -37,22 +37,13 @@ def from_one_hot(y, axis=1):
     return np.argmax(y, axis=axis)
 
 
-def compute_roc_auc_scores(y, y_pred):
-    """Transforms the results dict into roc-auc-scores and prints scores.
-
-    Parameters
-    ----------
-    results: dict
-    task_types: dict
-      dict mapping task names to output type. Each output type must be either
-      "classification" or "regression".
+def accuracy(y_true, y_pred):
+    """Transforms the results dict into accuracy.
+    y-pred (N-sample.n-class), y_true (n-sample)
     """
-    try:
-        score = roc_auc_score(y, y_pred)
-    except ValueError:
-        warnings.warn("ROC AUC score calculation failed.")
-        score = 0.5
-    return score
+    correct = np.equal(np.argmax(y_pred, 1).astype(np.int32), y_true.astype(np.int32))
+    accuracy = np.sum(correct) / float(y_true.shape[0])
+    return accuracy
 
 
 def pearson_r2_score(y, y_pred):
@@ -137,8 +128,8 @@ class Metric(object):
 
         if mode is None:
             if self.metric.__name__ in [
-                "roc_auc_score", "matthews_corrcoef", "recall_score",
-                "accuracy_score", "kappa_score", "precision_score"
+                "roc_auc_score", "matthews_corrcoef", "recall_score", "average_precision_score",
+                "accuracy_score", "kappa_score", "precision_score", "accuracy"
             ]:
                 mode = "classification"
             elif self.metric.__name__ in [
@@ -230,8 +221,8 @@ class Metric(object):
         """Compute a metric value.
 
         Args:
-          y_true: A list of arrays containing true values for each task.
-          y_pred: A list of arrays containing predicted values for each task.
+          y_true: A list of arrays containing true values for each task. one-hot form of labels (n-samples, n-classes)
+          y_pred: A list of arrays containing predicted values for each task.(n-samples, n-classes)
 
         Returns:
           Float metric value.
@@ -239,8 +230,11 @@ class Metric(object):
         Raises:
           NotImplementedError: If metric_str is not in METRICS.
         """
-        y_true = np.array(np.squeeze(y_true[w != 0]))
-        y_pred = np.array(np.squeeze(y_pred[w != 0]))
+        w = np.squeeze(w)
+        if len(y_pred.shape) > 2:
+            y_pred = np.squeeze(y_pred, axis=1)
+        y_true = np.array(np.squeeze(y_true[w != 0, :])).astype(np.float32)
+        y_pred = np.array(np.squeeze(y_pred[w != 0, :])).astype(np.float32)
 
         if len(y_true.shape) == 0:
             n_samples = 1
@@ -250,24 +244,32 @@ class Metric(object):
         if not y_true.size:
             return np.nan
 
-        y_true = np.reshape(y_true, (n_samples,))
         if self.mode == "classification":
             n_classes = y_pred.shape[-1]
-            if "roc_auc_score" in self.name:
-                y_true = to_one_hot(y_true).astype(int)
+            if "roc_auc_score" in self.name or "average_precision_score" in self.name:
+                """ make sure y_pred, p_true are one-hot """
+                # y_true = to_one_hot(y_true).astype(int)
+                # y_pred = to_one_hot(y_pred).astype(int)
+
                 y_pred = np.reshape(y_pred, (n_samples, n_classes))
+                y_true = np.reshape(y_true, (n_samples, n_classes))
             else:
-                y_true = y_true.astype(int)
+                """ for other metric, convert ground-truth to 1-d , make sure prediction is (n_sample, n-class)"""
+                # y_true = y_true.astype(int)
+                y_true = from_one_hot(y_true).astype(int)
                 # Reshape to handle 1-d edge cases
                 y_pred = np.reshape(y_pred, (n_samples, n_classes))
-                y_pred = from_one_hot(y_pred)
+                # y_pred = from_one_hot(y_pred).astype(int)
         else:
             y_pred = np.reshape(y_pred, (n_samples,))
 
         # if self.threshold is not None:
         #     y_pred = np.greater(y_pred, threshold)
         try:
-            metric_value = self.metric(y_true, y_pred)
+            if self.metric.__name__ in ['accuracy']:
+                metric_value = self.metric(y_true, y_pred)
+            else:
+                metric_value = self.metric(y_true, y_pred, average='samples')
         except (AssertionError, ValueError) as e:
             warnings.warn("Error calculating metric %s: %s" % (self.name, e))
             metric_value = np.nan

@@ -5,12 +5,12 @@ from __future__ import unicode_literals
 
 import tensorflow as tf
 
-from AGCN.models.networks.basic_AGCN import SimpleAGCN
+from AGCN.models.networks.basic_AGCN import Network
 from AGCN.models.tf_modules.tf_graphs import ResidualGraphMol, ResidualGraphMolResLap
 from AGCN.models.layers import MLP, DenseMol, SGC_LL, GraphGatherMol, SGC_LL_Reslap, BlockEnd
 
 
-class ResAGCN(SimpleAGCN):
+class ResAGCN(Network):
     def construct_network(self):
         tf.set_random_seed(self.seed)
 
@@ -57,7 +57,7 @@ class ResAGCN(SimpleAGCN):
         print("Network Constructed Successfully! \n")
 
 
-class ResAGCNResLap(SimpleAGCN):
+class ResAGCNResLap(Network):
     def construct_network(self):
         tf.set_random_seed(self.seed)
 
@@ -103,7 +103,7 @@ class ResAGCNResLap(SimpleAGCN):
         print("Network Constructed Successfully! \n")
 
 
-class MLP_ResAGCNResLap(SimpleAGCN):
+class MLP_ResAGCNResLap(Network):
     def construct_network(self):
         tf.set_random_seed(self.seed)
 

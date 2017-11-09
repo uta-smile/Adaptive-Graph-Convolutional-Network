@@ -27,10 +27,38 @@ class Evaluator(object):
     def __init__(self, model, dataset, transformers, verbose=False):
         self.model = model
         self.dataset = dataset
-        self.output_transformers = [
-            transformer for transformer in transformers if transformer.transform_y]
+        if len(transformers) > 0:
+            self.output_transformers = [
+                transformer for transformer in transformers if transformer.transform_y]
+        else:
+            """ allow to skip undo-transform, if transformer is not given"""
+            self.output_transformers = []
         self.task_names = dataset.get_task_names()
         self.verbose = verbose
+
+    def computer_singletask_performance(self, metrics):
+        y = self.dataset.y
+        y = undo_transforms(y, self.output_transformers)
+        w = self.dataset.w
+
+        if not len(metrics):
+            return {}
+        else:
+            mode = metrics[0].mode
+
+        if mode == "classification":
+            y_pred = self.model.predict_proba(self.dataset, self.output_transformers)   # batch_size = None, return all
+            # y_pred_print = self.model.predict(self.dataset, self.output_transformers).astype(int)
+        else:
+            y_pred = self.model.predict(self.dataset, self.output_transformers)
+            # y_pred_print = y_pred
+
+        scores = {}
+        for metric in metrics:
+            scores[metric.name] = metric.compute_singletask_metric(
+                y, y_pred, w)
+
+        return scores
 
     def compute_model_performance(self, metrics, csv_out=None, stats_out=None,
                                   per_task_metrics=False):

@@ -119,8 +119,8 @@ class Dataset(object):
         else:
             return None
 
-    @staticmethod
-    def pad_batch(batch_size, X_b, y_b, w_b, ids_b):
+    # @staticmethod
+    def pad_batch(self, batch_size, X_b, y_b, w_b, ids_b):
         """Pads batch to have size precisely batch_size elements.
 
         Fills in batch by wrapping around samples till whole batch is filled.

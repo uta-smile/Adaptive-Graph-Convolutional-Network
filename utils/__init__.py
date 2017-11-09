@@ -20,3 +20,4 @@ from AGCN.utils.transformer.transformers import BalancingTransformer, Normalizat
 
 from AGCN.utils.dataloader_configs import loaderconfig_dict
 from AGCN.utils.hyper_parameters import exp_hps
+from AGCN.utils.provider import *

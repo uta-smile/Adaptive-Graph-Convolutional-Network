@@ -17,16 +17,18 @@ from AGCN.utils.datatset import NumpyDataset
 def undo_transforms(y, transformers):
     """Undoes all transformations applied."""
     # Note that transformers have to be undone in reversed order
-    for transformer in reversed(transformers):
-        if transformer.transform_y:
-            y = transformer.untransform(y)
+    if len(transformers) > 0:
+        for transformer in reversed(transformers):
+            if transformer.transform_y:
+                y = transformer.untransform(y)
     return y
 
 
 def undo_grad_transforms(grad, tasks, transformers):
-    for transformer in reversed(transformers):
-        if transformer.transform_y:
-            grad = transformer.untransform_grad(grad, tasks)
+    if len(transformers) > 0:
+        for transformer in reversed(transformers):
+            if transformer.transform_y:
+                grad = transformer.untransform_grad(grad, tasks)
     return grad
 
 
@@ -91,6 +93,7 @@ class Transformer(object):
             raise ValueError("Cannot transform y when y_values are not present")
         if w_shape == tuple() and self.transform_w:
             raise ValueError("Cannot transform w when w_values are not present")
+
         return dataset.transform(lambda X, y, w: self.transform_array(X, y, w))
 
     def transform_on_array(self, X, y, w):

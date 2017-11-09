@@ -8,20 +8,23 @@ loaderconfig_dict = dict()
 
 """ SMILES chemical dataset loader declare"""
 tox21_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, '
-                                           'smiles_filed, transformer')
-nci_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, smiles_filed, transformer')
-delaney_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, smiles_filed, transformer')
-clintox_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, smiles_filed, transformer')
-sider_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, smiles_filed, '
+                                           'smiles_filed, split_frac, transformer')
+nci_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, smiles_filed, transformer')
+delaney_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, smiles_filed, transformer')
+clintox_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, smiles_filed, transformer')
+sider_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, smiles_filed, '
                                            'transformer')
-toxcast_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, smiles_filed, transformer')
+toxcast_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, smiles_filed, transformer')
 
 """ Point cloud mesh dataset loader declare"""
-sydney_loader = namedtuple('pc_loader', 'dataset_class, dataset_name, file_name, tasks, transformer')
+sydney_loader = namedtuple('pc_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, transformer')
+
+modelnet40_loader = namedtuple('pc_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, transformer')
+
 
 """ Image dataset loader declare """
-cifar_loader = namedtuple('image_loader', 'dataset_class, dataset_name, file_name, tasks, transformer')
-fashion_loader = namedtuple('image_loader', 'dataset_class, dataset_name, file_name, tasks, transformer')
+cifar_loader = namedtuple('image_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, transformer')
+fashion_loader = namedtuple('image_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, transformer')
 
 
 """ Tox21 SMILES Dataset """
@@ -107,18 +110,27 @@ loaderconfig_dict['toxcast'] = toxcast_loader
 
 
 """ Point Cloud Sydney Dataset"""
-sydney_tasks = ['bicycle', 'pedestrian', 'biker', 'van', 'excavator', 'traffic_sign', 'scooter', 'bench',
-            'trash', 'vegetation', 'cyclist', 'umbrella', 'bus', 'ticket_machine', 'trunk', 'post', 'building',
-            'traffic_lights', '4wd', 'ute', 'car', 'pillar', 'tree', 'pole', 'truck', 'trailer']
-
+# sydney_tasks = ['bicycle', 'pedestrian', 'biker', 'van', 'excavator', 'traffic_sign', 'scooter', 'bench',
+#             'trash', 'vegetation', 'cyclist', 'umbrella', 'bus', 'ticket_machine', 'trunk', 'post', 'building',
+#             'traffic_lights', '4wd', 'ute', 'car', 'pillar', 'tree', 'pole', 'truck', 'trailer']
+sydney_tasks = ['objects']
 sydney_loader.tasks = sydney_tasks
 sydney_loader.dataset_class = 'pointcloud'
 sydney_loader.dataset_name = 'sydney'
 sydney_loader.file_name = 'objects'
-sydney_loader.transformer = 'balancing_w'
-
+# sydney_loader.transformer = 'balancing_w'
+sydney_loader.transformer = None
+sydney_loader.split_frac = [0.8]
 loaderconfig_dict['sydney'] = sydney_loader
 
+
+sydney_tasks = ['objects']
+modelnet40_loader.tasks = sydney_tasks
+modelnet40_loader.dataset_class = '3Dmesh'
+modelnet40_loader.dataset_name = 'modelnet40_ply_hdf5_2048'
+modelnet40_loader.transformer = None
+modelnet40_loader.split_frac = [0.8]
+loaderconfig_dict['modelnet40'] = modelnet40_loader
 
 """ Image Fashion MNIST Dataset """
 fashionimage_tasks = [

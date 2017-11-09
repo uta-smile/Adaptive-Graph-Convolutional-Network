@@ -15,10 +15,24 @@ from AGCN.utils.datatset import STDiskDataset
 from AGCN.models import Graph
 
 from AGCN.utils.transformer import BalancingTransformer, NormalizationTransformer
+from AGCN.utils.datatset import DiskDataset
 from AGCN.utils.splitter import IndexSplitter, ScaffoldSplitter, RandomSplitter
+from AGCN.utils import provider as pd
 
 
-class PointcloudLoader(DataLoader):
+# ModelNet40 official train/test split
+BASE_DIR = os.path.join(os.environ["HOME"], 'AGCN/')
+TRAIN_FILES = pd.getDataFiles( \
+    os.path.join(BASE_DIR, 'data/3Dmesh/modelnet40_ply_hdf5_2048/train_files.txt'))
+TEST_FILES = pd.getDataFiles(\
+    os.path.join(BASE_DIR, 'data/3Dmesh/modelnet40_ply_hdf5_2048/test_files.txt'))
+TRAIN_FILES = map(lambda x: x.split('/')[-1], TRAIN_FILES)
+TEST_FILES = map(lambda x: x.split('/')[-1], TEST_FILES)
+
+NUM_POINT = 1024
+
+
+class MeshLoader(DataLoader):
     """
     This class of loader is for Point Cloud data, which is usually lots of binary files stay in
     a folder. Each binary file is a point cloud object, reading it, you get a nddarray of 3D points, each rwo of which
@@ -28,7 +42,7 @@ class PointcloudLoader(DataLoader):
     are manually learned and set by clustering.
     """
 
-    def featurize(self, shard_size=2048):
+    def featurize(self, shard_size=1024):
         """
         Args:
             input_folder: folder name of binary files (graph object)
@@ -36,135 +50,91 @@ class PointcloudLoader(DataLoader):
             shard_size: number of graphs in one shard
         Returns:
         """
-        input_folder = self.file_dir    # where to put the folders of PC objects
         data_dir = self.processed_data_dir  # where to store the processed sharded data
-        assert os.path.exists(input_folder)
         assert os.path.exists(data_dir)
-
-        if not isinstance(input_folder, list):
-            input_folders = [input_folder]
+        assert os.path.exists(self.data_dir)
 
         def shard_generator():
-            for shard_num, (shard, pc_dir) in enumerate(
-                    self.get_shards(input_folders, shard_size)):
-
-                X, valid_inds = self.featurize_shard(shard, pc_dir)
-                ids = np.asarray(shard)  # ids is the
-                if len(self.tasks) > 0:
-                    # Featurize task results iff they exist.
-                    # y is 1-d label, just tell the class id, 0-25 for sydney
-                    _, y = self.get_labels(shard, pc_dir)
-                    w = np.ones((y.shape[0], ))
-                    # Filter out examples where featurization failed.
-                    y, w = (y[valid_inds], w[valid_inds])
-                    assert len(X) == len(ids) == len(y) == len(w)
-
+            for shard_num, (shard, y) in enumerate(self.get_shards(TRAIN_FILES, shard_size)):
+                """shard is ndarray of 3D mesh point 3-dimension, [pc_id, point_id, (x,y,z)]
+                    y is the class id for each sample (3D mesh), int type
+                """
+                X = self.featurize_shard(shard)
+                ids = np.arange(X.shape[0])  # ids is the null here. no use
+                w = np.ones((y.shape[0], ))
+                assert len(X) == len(y) == len(w)
                 yield X, y, w, ids
 
         return STDiskDataset.create_dataset(
             shard_generator(), data_dir, self.tasks, verbose=self.verbose)
 
-    def get_shards(self, input_folders, shard_size):
-        shard_num = 1
-        for pc_dir in input_folders:
+    def get_shards(self, file_list, shard_size):
+
+        train_file_idxs = np.arange(0, len(file_list))
+        np.random.shuffle(train_file_idxs)        # randomly extract data from files
+
+        shard_num = 0
+        for fn in range(len(file_list)):
+            # load the point cloud from the file
+            current_data, current_label = pd.loadDataFile(os.path.join(self.data_dir, file_list[train_file_idxs[fn]]))
+            current_data = current_data[:, 0:NUM_POINT, :]
+            current_data, current_label, _ = pd.shuffle_data(current_data, np.squeeze(current_label))
+            current_label = np.squeeze(current_label)   # make it (n-sample, ) shape
+
             # pc_dir is the directory to point cloud files
             if shard_size is None:
-                pc_names = [f for f in listdir(pc_dir) if isfile(join(pc_dir, f)) and f[-3:] == 'bin']
-                yield pc_names, pc_dir
+                rotated_data = pd.rotate_point_cloud(current_data)
+                jittered_data = pd.jitter_point_cloud(rotated_data)
+                yield (jittered_data, current_label)
             else:
-                pc_names = [f for f in listdir(pc_dir) if isfile(join(pc_dir, f)) and f[-3:] == 'bin']
-                end = int(shard_num * shard_size)
-                start = int((shard_num - 1) * shard_size)
-                while end <= len(pc_names):
-                    pc_sequences = pc_names[start: end]
+                start_idx = shard_num * shard_size
+                end_idx = (shard_num + 1) * shard_size
+                while end_idx <= current_data.shape[0]:
+                    rotated_data = pd.rotate_point_cloud(current_data[start_idx:end_idx, :, :])
+                    jittered_data = pd.jitter_point_cloud(rotated_data)  # ready data
+                    sel_labels = current_label[start_idx:end_idx]       # corresponding labels
                     shard_num += 1
-                    end = int(shard_num * shard_size)
-                    start = int((shard_num - 1) * shard_size)
-                    yield pc_sequences, pc_dir
+                    start_idx = shard_num * shard_size
+                    end_idx = (shard_num + 1) * shard_size
+                    yield (jittered_data, sel_labels)
                 # end exceed the bound of pc_names, return all
-                yield pc_names[start:], pc_dir
+                yield (pd.jitter_point_cloud(pd.rotate_point_cloud(current_data[start_idx:, :, :])), current_label[start_idx:])
 
-    def get_labels(self, shard, pc_dir):
-        """
-        set one -hot labels for each samples,
-        which equals to set a multi-tasks prediction, each class is a task.
-        weight for each tasks each sample is always 1
-
-        Args:
-            shard: list of names of binary file which contains the class name
-            pc_dir: directory where sample saved
-
-        Returns: one-hot labels, weight vectors on each task
-        """
-        classes_byitems = []
-        # count how many classes in dataset
-        for f in [f for f in listdir(pc_dir) if isfile(join(pc_dir, f)) and f[-3:] == 'bin']:
-            classes_byitems.append(f.split('.')[0])  # first word is class name
-        classes_num = len(set(classes_byitems))
-        # one class , e.g. car, to one class id
-        label2classes = dict(zip(list(set(classes_byitems)), np.arange(classes_num)))
-
-        y = []
-        for pc in shard:
-            # parse the sample label
-            class_name = pc.split('.')[0]
-            class_id = label2classes[class_name]
-            y.append(class_id)
-
-        one_hot_labels = np.zeros((len(shard), len(label2classes)))     # prepare a matrix
-        one_hot_labels[np.arange(len(shard)), y] = 1                    # set the on-hot
-        return one_hot_labels, np.asarray(y).astype(np.int32)
-
-    def featurize_shard(self, shard, pc_dir=None):
-        # create graph object for each point cloud object
+    def featurize_shard(self, shard):
 
         """
-            binary file format
+        convert ndarray (n-sample, n_point of sample, 3-d)
+        :param shard: ndarray, point cloud raw data
+        :return: graph object for each sample
         """
-        names = ['t', 'intensity', 'id',
-                 'x', 'y', 'z',
-                 'azimuth', 'range', 'pid']
-
-        formats = ['int64', 'uint8', 'uint8',
-                   'float32', 'float32', 'float32',
-                   'float32', 'float32', 'int32']
-
-        binType = np.dtype(dict(names=names, formats=formats))
-
         cluster_num = 50  # min_node in this folder is 13 precomputed
         clusterer = sc.AgglomerativeClustering(n_clusters=cluster_num)
 
-        X = []
-        for pc_file in shard:
+        X = []  # to save the graph object
+        n_samples = shard.shape[0]
+        for pc_id in range(n_samples):
             # iterate each pc in shard
-            data = np.fromfile(os.path.join(pc_dir, pc_file), binType)
-            # read original points and intensity
-            P = np.vstack([data['x'], data['y'], data['z']]).T
-            intensity = np.asarray(data['intensity']).T
-
+            P = np.squeeze(shard[pc_id, :, :])
             if P.shape[0] > cluster_num:
                 # clustering on original cloud
                 cluster_indicators = clusterer.fit_predict(P)  # labels of original points
-                new_points, new_intensity = [], []
+                new_points = []
                 for i in range(cluster_num):
+                    """ each cluster center is the new point after clustering"""
                     idx = np.where(cluster_indicators == i)
                     coord = np.mean(P[idx], axis=0)
-                    intent = np.mean(intensity[idx], axis=0)
                     new_points.append(coord)
-                    new_intensity.append(intent)
                 new_PC = np.asarray(new_points).astype(np.float32)
-                new_intentities = np.asarray(new_intensity).astype(np.float32)
+                assert new_PC.shape[0] <= cluster_num
             else:
-                # do not do clustering, use original points and intensity
+                # do not need a clustering, use original points
                 new_PC = P
-                new_intentities = intensity
 
             # create graph on point cloud
-            node_features = np.hstack([new_PC, np.expand_dims(new_intentities, 1)])
-            adj_list, adj_matrix = self.get_adjacency(node_features)
-            X.append(Graph(node_features, adj_list, max_deg=cluster_num, min_deg=0))
+            adj_list, adj_matrix = self.get_adjacency(new_PC)
+            X.append(Graph(new_PC, adj_list, max_deg=cluster_num, min_deg=0))
 
-        return np.asarray(X), np.asarray([True] * len(X))
+        return np.asarray(X)
 
     @staticmethod
     def get_adjacency(points):

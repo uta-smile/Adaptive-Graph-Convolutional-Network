@@ -91,7 +91,6 @@ class Splitter(object):
                        dataset,
                        train_dir=None,
                        test_dir=None,
-                       seed=None,
                        frac_train=.6,
                        verbose=True):
         """

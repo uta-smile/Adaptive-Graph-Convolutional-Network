@@ -6,3 +6,4 @@ from AGCN.models.tf_modules.basic_model import Model
 from AGCN.models.tf_modules.metrics import Metric
 from AGCN.models.tf_modules.multitask_classifier import MultitaskGraphClassifier
 from AGCN.models.tf_modules.multitask_regressor import MultitaskGraphRegressor
+from AGCN.models.tf_modules.singletask_classifier import SingletaskGraphClassifier
