@@ -17,9 +17,9 @@ sider_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_na
 toxcast_loader = namedtuple('smiles_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, smiles_filed, transformer')
 
 """ Point cloud mesh dataset loader declare"""
-sydney_loader = namedtuple('pc_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, transformer')
+sydney_loader = namedtuple('pc_loader', 'dataset_class, dataset_name, file_name, tasks, n_classes, split_frac, transformer')
 
-modelnet40_loader = namedtuple('pc_loader', 'dataset_class, dataset_name, file_name, tasks, split_frac, transformer')
+modelnet40_loader = namedtuple('pc_loader', 'dataset_class, dataset_name, file_name, tasks, n_classes, split_frac, transformer')
 
 
 """ Image dataset loader declare """
@@ -121,6 +121,7 @@ sydney_loader.file_name = 'objects'
 # sydney_loader.transformer = 'balancing_w'
 sydney_loader.transformer = None
 sydney_loader.split_frac = [0.8]
+sydney_loader.n_classes = 26
 loaderconfig_dict['sydney'] = sydney_loader
 
 
@@ -130,6 +131,7 @@ modelnet40_loader.dataset_class = '3Dmesh'
 modelnet40_loader.dataset_name = 'modelnet40_ply_hdf5_2048'
 modelnet40_loader.transformer = None
 modelnet40_loader.split_frac = [0.8]
+modelnet40_loader.n_classes = 40
 loaderconfig_dict['modelnet40'] = modelnet40_loader
 
 """ Image Fashion MNIST Dataset """

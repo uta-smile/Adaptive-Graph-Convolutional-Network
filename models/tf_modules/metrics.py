@@ -14,7 +14,7 @@ from sklearn.metrics import precision_score
 from scipy.stats import pearsonr
 
 
-def to_one_hot(y):
+def to_one_hot(y, n_classes=2):
     """Transforms label vector into one-hot encoding.
 
     Turns y into vector of shape [n_samples, 2] (assuming binary labels).
@@ -23,7 +23,7 @@ def to_one_hot(y):
       A vector of shape [n_samples, 1]
     """
     n_samples = np.shape(y)[0]
-    y_hot = np.zeros((n_samples, 2))
+    y_hot = np.zeros((n_samples, n_classes))
     y_hot[np.arange(n_samples), y.astype(np.int64)] = 1
     return y_hot
 
@@ -221,7 +221,7 @@ class Metric(object):
         """Compute a metric value.
 
         Args:
-          y_true: A list of arrays containing true values for each task. one-hot form of labels (n-samples, n-classes)
+          y_true: A list of arrays containing true values for each task. 1-d label shape as (n-samples)
           y_pred: A list of arrays containing predicted values for each task.(n-samples, n-classes)
 
         Returns:
@@ -233,8 +233,8 @@ class Metric(object):
         w = np.squeeze(w)
         if len(y_pred.shape) > 2:
             y_pred = np.squeeze(y_pred, axis=1)
-        y_true = np.array(np.squeeze(y_true[w != 0, :])).astype(np.float32)
-        y_pred = np.array(np.squeeze(y_pred[w != 0, :])).astype(np.float32)
+        y_true = np.array(np.squeeze(y_true[w != 0])).astype(np.float32)
+        y_pred = np.array(np.squeeze(y_pred[w != 0])).astype(np.float32)
 
         if len(y_true.shape) == 0:
             n_samples = 1
@@ -246,20 +246,19 @@ class Metric(object):
 
         if self.mode == "classification":
             n_classes = y_pred.shape[-1]
-            if "roc_auc_score" in self.name or "average_precision_score" in self.name:
-                """ make sure y_pred, p_true are one-hot """
-                # y_true = to_one_hot(y_true).astype(int)
-                # y_pred = to_one_hot(y_pred).astype(int)
+            if self.name in ["roc_auc_score", "average_precision_score"]:
 
-                y_pred = np.reshape(y_pred, (n_samples, n_classes))
+                """ make sure y_pred, p_true are one-hot """
+                y_true = to_one_hot(y_true, n_classes).astype(int)
                 y_true = np.reshape(y_true, (n_samples, n_classes))
-            else:
+                y_pred = np.reshape(y_pred, (n_samples, n_classes))
+
+            elif self.name in ["accuracy"]:
+
                 """ for other metric, convert ground-truth to 1-d , make sure prediction is (n_sample, n-class)"""
-                # y_true = y_true.astype(int)
-                y_true = from_one_hot(y_true).astype(int)
-                # Reshape to handle 1-d edge cases
                 y_pred = np.reshape(y_pred, (n_samples, n_classes))
                 # y_pred = from_one_hot(y_pred).astype(int)
+
         else:
             y_pred = np.reshape(y_pred, (n_samples,))
 

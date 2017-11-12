@@ -4,40 +4,33 @@ from __future__ import division
 from __future__ import unicode_literals
 
 import numpy as np
-import pickle
 import os
-import time
 
 from os import listdir
 from os.path import isfile, join
 import sklearn.cluster as sc
 import pickle
 
-from AGCN.utils.data_loader import DataLoader, PointcloudLoader
+from AGCN.utils.data_loader import PointcloudLoader
 from AGCN.models import Graph
 
-from AGCN.utils.transformer import BalancingTransformer, NormalizationTransformer
-from AGCN.utils.datatset import DiskDataset, TrainTestDataset, STDiskDataset
-from AGCN.utils.splitter import IndexSplitter, ScaffoldSplitter, RandomSplitter
 from AGCN.utils import provider as pd
 from AGCN.utils.save import save_to_disk, load_from_disk
 
-# ModelNet40 official train/test split
-BASE_DIR = os.path.join(os.environ["HOME"], 'AGCN/')
-TRAIN_FILES = pd.getDataFiles( \
-    os.path.join(BASE_DIR, 'data/3Dmesh/modelnet40_ply_hdf5_2048/train_files.txt'))
-TEST_FILES = pd.getDataFiles(\
-    os.path.join(BASE_DIR, 'data/3Dmesh/modelnet40_ply_hdf5_2048/test_files.txt'))
-TRAIN_FILES = map(lambda x: x.split('/')[-1], TRAIN_FILES)
-TEST_FILES = map(lambda x: x.split('/')[-1], TEST_FILES)
 
-NUM_POINT = 1024
+# ShapeNet Part Segmentation
+BASE_DIR = os.path.join(os.environ["HOME"], 'AGCN/data/3Dmesh/part_seg_shapenet/hdf5_data')
+TRAIN_FILES = pd.getDataFiles(os.path.join(BASE_DIR, 'train_hdf5_file_list.txt'))
+TEST_FILES = pd.getDataFiles(os.path.join(BASE_DIR, 'test_hdf5_file_list.txt'))
+
+NUM_CATEGORIES = 16
+CLUSTER_NUM = 100
 
 TRAIN_NUM = 6000
-TEST_NUM = 1024
+TEST_NUM = 512
 
 
-class MeshLoader(PointcloudLoader):
+class ShapeNetLoader(PointcloudLoader):
     """
     This class of loader is for Point Cloud data, which is usually lots of binary files stay in
     a folder. Each binary file is a point cloud object, reading it, you get a nddarray of 3D points, each rwo of which
@@ -66,33 +59,25 @@ class MeshLoader(PointcloudLoader):
             os.makedirs(test_dir)
 
         metadata_rows = []
-        all_X, all_y, all_w, all_ids = [], [], [], []
-        for shard_num, (shard, y) in enumerate(self.get_shards(TRAIN_FILES, shard_size)):
+        all_X, all_y, all_seg, all_y_one_hot = [], [], [], []
+        for shard_num, (shard, y, seg, y_1h) in enumerate(self.get_shards(TRAIN_FILES, shard_size)):
             """shard is ndarray of 3D mesh point 3-dimension, [pc_id, point_id, (x,y,z)]
                 y is the class id for each sample (3D mesh), int type
             """
             print('Featurizing Training Data , Shard - %d' % shard_num)
-            X = self.featurize_shard(shard)
-            ids = np.arange(X.shape[0]) + shard_num * shard_size  # ids is the null here. no use
-            w = np.ones((y.shape[0],))
-            assert len(X) == len(y) == len(w) == len(ids)
+            X, seg = self.featurize_shard(shard, seg)
 
             """ save shard (x,y,ids, w)"""
             basename = "shard-%d" % shard_num
-            metadata_rows.append(
-                STDiskDataset.write_data_to_disk(train_dir, basename, self.tasks, X, y, w, ids))
+            metadata_rows.append(self.write_data_to_disk(train_dir, basename, X, y, seg, y_1h))
 
             """ stack to list"""
             all_X.append(X)
             all_y.append(y)
-            all_w.append(w)
-            all_ids.append(ids)
+            all_seg.append(seg)
+            all_y_one_hot.append(y_1h)
 
-        """ save the meta data to local """
-        # metadata_df = STDiskDataset._construct_metadata(metadata_rows)
-        # metadata_filename = os.path.join(train_dir, "metadata.joblib")
-        # save_to_disk((self.tasks, metadata_df), metadata_filename)
-
+        """ save the meta data of training dataset to local """
         meta_data1 = list()
         meta_data1.append(metadata_rows)
         with open(os.path.join(train_dir, 'meta.pkl'), 'wb') as f:
@@ -101,36 +86,35 @@ class MeshLoader(PointcloudLoader):
         """ return a Dataset contains all X, y, w, ids"""
         all_X = np.concatenate(all_X)
         all_y = np.squeeze(np.concatenate(all_y))
-        all_w = np.squeeze(np.concatenate(all_w))
-        all_ids = np.squeeze(np.concatenate(all_ids))
-        assert all_X.shape[0] == all_y.shape[0] == all_w.shape[0] == all_ids.shape[0]
-        train_dataset = STDiskDataset.from_numpy(all_X, all_y, all_w, all_ids,
-                                                 tasks=self.tasks,
-                                                 n_classes=self.n_classes,
-                                                 data_dir=train_dir)
+        all_seg = np.squeeze(np.vstack(all_seg))
+        all_y_one_hot = np.squeeze(np.vstack(all_y_one_hot))
+        assert all_X.shape[0] == all_y.shape[0] == all_seg.shape[0] == all_y_one_hot.shape[0]
+
+        train_dataset = dict()
+        train_dataset['X'] = all_X
+        train_dataset['y'] = all_y
+        train_dataset['seg_mask'] = all_seg
+        train_dataset['one_hot_y'] = all_y_one_hot
 
         metadata_rows = []
-        all_X, all_y, all_w, all_ids = [], [], [], []
-        for shard_num, (shard, y) in enumerate(self.get_shards(TEST_FILES, shard_size)):
+        all_X, all_y, all_seg, all_y_one_hot = [], [], [], []
+        for shard_num, (shard, y, seg, y_1h) in enumerate(self.get_shards(TEST_FILES, shard_size)):
             """shard is ndarray of 3D mesh point 3-dimension, [pc_id, point_id, (x,y,z)]
-                y is the class id for each sample (3D mesh), int type
+                y is the class id for each sample (3D mesh), int type [pc_id, part_id of point]
             """
+
             print('Featurizing Testing Data , Shard - %d' % shard_num)
-            X = self.featurize_shard(shard)
-            ids = np.arange(X.shape[0]) + shard_num * shard_size  # ids is the null here. no use
-            w = np.ones((y.shape[0],))
-            assert len(X) == len(y) == len(w) == len(ids)
+            X, seg = self.featurize_shard(shard, seg)
 
             """ save shard (x,y,ids, w)"""
             basename = "shard-%d" % shard_num
-            metadata_rows.append(
-                STDiskDataset.write_data_to_disk(test_dir, basename, self.tasks, X, y, w, ids))
+            metadata_rows.append(self.write_data_to_disk(test_dir, basename, X, y, seg, y_1h))
 
             """ stack to list"""
             all_X.append(X)
             all_y.append(y)
-            all_w.append(w)
-            all_ids.append(ids)
+            all_seg.append(seg)
+            all_y_one_hot.append(y_1h)
 
         """ save the meta data to local """
         meta_data2 = list()
@@ -141,13 +125,15 @@ class MeshLoader(PointcloudLoader):
         """ return a Dataset contains all X, y, w, ids"""
         all_X = np.concatenate(all_X)
         all_y = np.squeeze(np.concatenate(all_y))
-        all_w = np.squeeze(np.concatenate(all_w))
-        all_ids = np.squeeze(np.concatenate(all_ids))
-        assert all_X.shape[0] == all_y.shape[0] == all_w.shape[0] == all_ids.shape[0]
-        test_dataset = STDiskDataset.from_numpy(all_X, all_y, all_w, all_ids,
-                                                tasks=self.tasks,
-                                                n_classes=self.n_classes,
-                                                data_dir=test_dir)
+        all_seg = np.squeeze(np.vstack(all_seg))
+        all_y_one_hot = np.squeeze(np.vstack(all_y_one_hot))
+        assert all_X.shape[0] == all_y.shape[0] == all_seg.shape[0] == all_y_one_hot.shape[0]
+
+        test_dataset = dict()
+        test_dataset['X'] = all_X
+        test_dataset['y'] = all_y
+        test_dataset['seg_mask'] = all_seg
+        test_dataset['one_hot_y'] = all_y_one_hot
 
         return train_dataset, test_dataset
 
@@ -157,75 +143,125 @@ class MeshLoader(PointcloudLoader):
         file_idxs = np.arange(0, len(file_list))
         np.random.shuffle(file_idxs)  # randomly extract data from files
 
-        all_data, all_label = [], []
+        """read all data"""
+        all_data, all_label, all_seg, all_one_hot_label = [], [], [], []
         for fn in file_idxs:
             # load the point cloud from the file, current_data -> data from one file
-            current_data, current_label = pd.loadDataFile(os.path.join(self.data_dir, file_list[fn]))
-            current_data = current_data[:, 0:NUM_POINT, :]
-            current_data, current_label, _ = pd.shuffle_data(current_data, np.squeeze(current_label))
-            current_label = np.squeeze(current_label)  # make it (n-sample, ) shape
+            current_data, current_label, current_seg = pd.loadDataFile_with_seg(os.path.join(BASE_DIR, file_list[fn]))
+            # remove redundant dimensions
+            current_label = np.squeeze(current_label)
+            current_seg = np.squeeze(current_seg)
+
+            # shuffle data order
+            cur_data, cur_labels, order = pd.shuffle_data(current_data, np.squeeze(current_label))
+            current_seg = current_seg[order, ...]
+
+            # create one-hot class label
+            cur_labels_one_hot = self.convert_label_to_one_hot(current_label)
+            cur_labels_one_hot = np.squeeze(cur_labels_one_hot)
+
             all_data.append(current_data)
             all_label.append(current_label)
+            all_seg.append(current_seg)
+            all_one_hot_label.append(cur_labels_one_hot)
+
         """ create numpy for all data and label"""
         all_data = np.squeeze(np.vstack(all_data))
+        all_seg = np.squeeze(np.vstack(all_seg))
+        all_one_hot_label = np.squeeze(np.vstack(all_one_hot_label))
         all_label = np.squeeze(np.hstack(all_label))
-        assert all_label.shape[0] == all_data.shape[0]
+        assert all_label.shape[0] == all_data.shape[0] == all_seg.shape[0] == all_one_hot_label.shape[0]
 
+        "generate shard data, label, seg_mask, one_hot labels"
         shard_num = 0
-        # pc_dir is the directory to point cloud files
-        if shard_size is None:
-            rotated_data = pd.rotate_point_cloud(all_data)
-            jittered_data = pd.jitter_point_cloud(rotated_data)
-            yield jittered_data, all_label
-        else:
+
+        start_idx = shard_num * shard_size
+        end_idx = (shard_num + 1) * shard_size
+        while end_idx < all_data.shape[0]:
+            sel_data = all_data[start_idx:end_idx, :, :]  # ready data
+            sel_labels = all_label[start_idx:end_idx]       # corresponding labels
+            sel_seg = all_seg[start_idx:end_idx, :]
+            sel_one_hot_labels = all_one_hot_label[start_idx:end_idx, :]
+            shard_num += 1
             start_idx = shard_num * shard_size
             end_idx = (shard_num + 1) * shard_size
-            while end_idx < all_data.shape[0]:
-                rotated_data = pd.rotate_point_cloud(all_data[start_idx:end_idx, :, :])
-                jittered_data = pd.jitter_point_cloud(rotated_data)  # ready data
-                sel_labels = all_label[start_idx:end_idx]       # corresponding labels
-                shard_num += 1
-                start_idx = shard_num * shard_size
-                end_idx = (shard_num + 1) * shard_size
-                yield jittered_data, sel_labels
-            # end exceed the bound of pc_names, return all
-            yield pd.jitter_point_cloud(pd.rotate_point_cloud(all_data[start_idx:, :, :])), all_label[start_idx:]
+            yield sel_data, sel_labels, sel_seg, sel_one_hot_labels
+        # end exceed the bound of pc_names, return all
+        yield all_data[start_idx:, :, :], all_label[start_idx:], all_seg[start_idx:, :], all_one_hot_label[start_idx:, :]
 
-    def featurize_shard(self, shard):
+    @staticmethod
+    def write_data_to_disk(
+                           data_dir,
+                           basename,
+                           X=None,
+                           y=None,
+                           seg=None,
+                           y_1h=None):
+
+        out_X = "%s-X.joblib" % basename
+        save_to_disk(X, os.path.join(data_dir, out_X))
+
+        out_y = "%s-y.joblib" % basename
+        save_to_disk(y, os.path.join(data_dir, out_y))
+
+        out_seg = "%s-seg.joblib" % basename
+        save_to_disk(seg, os.path.join(data_dir, out_seg))
+
+        out_y_1h = "%s-y1h.joblib" % basename
+        save_to_disk(y_1h, os.path.join(data_dir, out_y_1h))
+
+        # note that this corresponds to the _construct_metadata column order
+        return {'basename': basename, 'X': out_X, 'y': out_y, 'seg_mask': out_seg, 'one_hot_y': out_y_1h}
+
+    def convert_label_to_one_hot(self, labels):
+        label_one_hot = np.zeros((labels.shape[0], self.n_classes))
+        for idx in range(labels.shape[0]):
+            label_one_hot[idx, labels[idx]] = 1
+        return label_one_hot
+
+    def featurize_shard(self, shard, seg_mask):
 
         """
         convert ndarray (n-sample, n_point of sample, 3-d)
         :param shard: ndarray, point cloud raw data
         :return: graph object for each sample
         """
-        cluster_num = 50  # min_node in this folder is 13 precomputed
+        cluster_num = CLUSTER_NUM  # min_node in this folder is 13 precomputed
         clusterer = sc.AgglomerativeClustering(n_clusters=cluster_num)
 
         X = []  # to save the graph object
+        S = []  # list of new mask
         n_samples = shard.shape[0]
         for pc_id in range(n_samples):
             # iterate each pc in shard
             P = np.squeeze(shard[pc_id, :, :])
+            mask = np.squeeze(seg_mask[pc_id, :])
             if P.shape[0] > cluster_num:
                 # clustering on original cloud
                 cluster_indicators = clusterer.fit_predict(P)  # labels of original points
                 new_points = []
+                Point_mask = []
                 for i in range(cluster_num):
                     """ each cluster center is the new point after clustering"""
                     idx = np.where(cluster_indicators == i)
                     coord = np.mean(P[idx], axis=0)
+                    part_id = np.argmax(np.bincount(mask[idx])).astype(np.int32)
                     new_points.append(coord)
+                    Point_mask.append(part_id)  # this point at coord belongs to part_id
                 new_PC = np.asarray(new_points).astype(np.float32)
-                assert new_PC.shape[0] <= cluster_num
+                new_mask = np.asarray(Point_mask).astype(np.int32)
+                assert new_PC.shape[0] <= cluster_num and new_PC.shape[0] == new_mask.shape[0]
             else:
                 # do not need a clustering, use original points
                 new_PC = P
+                new_mask = mask
 
             # create graph on point cloud
             adj_list, adj_matrix = self.get_adjacency(new_PC)
             X.append(Graph(new_PC, adj_list, max_deg=cluster_num, min_deg=0))
+            S.append(new_mask)
 
-        return np.asarray(X)
+        return np.asarray(X), np.asarray(S),
 
     @staticmethod
     def get_adjacency(points):
@@ -261,40 +297,42 @@ class MeshLoader(PointcloudLoader):
         metadata_rows = meta_data[0]
 
         """itershard by loading from disk"""
-        all_X, all_y, all_w, all_ids = [], [], [], []
+        all_X, all_y, all_seg, all_y_1h = [], [], [], []
 
         for _, row in enumerate(metadata_rows):
-            X = np.array(load_from_disk(os.path.join(data_dir, row[3])))
-            ids = np.array(load_from_disk(os.path.join(data_dir, row[2])))
-            # These columns may be missing is the dataset is unlabelled.
-            y = np.array(load_from_disk(os.path.join(data_dir, row[4])))
-            w = np.array(load_from_disk(os.path.join(data_dir, row[5])))
+            # each row is a dict, contains file name for X, y, seg, y_one_hot
+            X = np.array(load_from_disk(os.path.join(data_dir, row['X'])))
+            y = np.array(load_from_disk(os.path.join(data_dir, row['y'])))
+            seg = np.array(load_from_disk(os.path.join(data_dir, row['seg_mask'])))
+            y_1h = np.array(load_from_disk(os.path.join(data_dir, row['one_hot_y'])))
 
             """ stack to list"""
             all_X.append(X)
             all_y.append(y)
-            all_w.append(w)
-            all_ids.append(ids)
+            all_seg.append(seg)
+            all_y_1h.append(y_1h)
 
         """ return a Dataset contains all X, y, w, ids"""
         if istrain:
             cut = TRAIN_NUM
         else:
             cut = TEST_NUM
-        all_X = np.concatenate(all_X)
+        all_X = np.vstack(all_X)
         all_y = np.squeeze(np.concatenate(all_y))
-        all_w = np.squeeze(np.concatenate(all_w))
-        all_ids = np.squeeze(np.concatenate(all_ids))
-        assert all_X.shape[0] == all_y.shape[0] == all_w.shape[0] == all_ids.shape[0]
+        all_seg = np.squeeze(np.vstack(all_seg))
+        all_y_1h = np.squeeze(np.vstack(all_y_1h))
+        assert all_X.shape[0] == all_y.shape[0] == all_seg.shape[0] == all_y_1h.shape[0]
 
-        dataset = STDiskDataset.from_numpy(all_X[:cut], all_y[:cut], all_w[:cut], all_ids[:cut],
-                                           tasks=self.tasks,
-                                           n_classes=self.n_classes,
-                                           data_dir=data_dir)
+        dataset = dict()
+        dataset['X'] = all_X[cut:]
+        dataset['y'] = all_y[cut:]
+        dataset['seg_mask'] = all_seg[cut:]
+        dataset['one_hot_y'] = all_y_1h[cut:]
+
         return dataset
 
     def load(self):
-        """Load chemical datasets. Raw data is given as SMILES format"""
+        """Load chemical datasets. Raw data is given as SMILES format."""
 
         meta_data = []
         if len(os.listdir(self.processed_data_dir)) != 0:
@@ -318,12 +356,11 @@ class MeshLoader(PointcloudLoader):
             train, test = self.featurize(shard_size=256)
 
             """max_atom is the max atom of molecule in all_dataset """
-            max_atom = self.find_max_atom(train)
+            max_atom = CLUSTER_NUM  # because we do clustering, so it is the cluster center number
             meta_data.append(max_atom)
-            meta_data.extend(self.tasks)
             with open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'wb') as f:
                 pickle.dump(meta_data, f)
 
-        return self.tasks, (train, test), self.transformers, max_atom
+        return train, test, max_atom
 
 

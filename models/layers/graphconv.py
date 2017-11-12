@@ -11,6 +11,11 @@ from AGCN.models.operators import activations
 from AGCN.models.layers import Layer, Dropout
 
 
+def truncate_normal(shape, stddev=1e-3, name=None):
+    initializer = tf.truncated_normal_initializer(stddev=stddev)
+    return tf.get_variable(name, shape, initializer=initializer, dtype=tf.float32)
+
+
 def glorot(shape, name=None):
     """Glorot & Bengio (AISTATS 2010) init."""
     init_range = np.sqrt(6.0/(shape[0]+shape[1]))

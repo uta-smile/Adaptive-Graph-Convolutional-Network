@@ -37,10 +37,13 @@ class Evaluator(object):
         self.verbose = verbose
 
     def computer_singletask_performance(self, metrics):
-        y = self.dataset.y
+        y = self.dataset.y  # 1-d label, just class id
         y = undo_transforms(y, self.output_transformers)
         w = self.dataset.w
 
+        # make sure shape is (n-sample,)
+        y = np.squeeze(y)
+        w = np.squeeze(w)
         if not len(metrics):
             return {}
         else:

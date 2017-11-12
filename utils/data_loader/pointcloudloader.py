@@ -50,19 +50,17 @@ class PointcloudLoader(DataLoader):
 
                 X, valid_inds = self.featurize_shard(shard, pc_dir)
                 ids = np.asarray(shard)  # ids is the
-                if len(self.tasks) > 0:
-                    # Featurize task results iff they exist.
-                    # y is 1-d label, just tell the class id, 0-25 for sydney
-                    _, y = self.get_labels(shard, pc_dir)
-                    w = np.ones((y.shape[0], ))
-                    # Filter out examples where featurization failed.
-                    y, w = (y[valid_inds], w[valid_inds])
-                    assert len(X) == len(ids) == len(y) == len(w)
-
+                # Featurize task results iff they exist.
+                # y is 1-d label, just tell the class id, 0-25 for sydney
+                _, y = self.get_labels(shard, pc_dir)
+                w = np.ones((y.shape[0], ))
+                # Filter out examples where featurization failed.
+                y, w = (y[valid_inds], w[valid_inds])
+                assert len(X) == len(ids) == len(y) == len(w)
                 yield X, y, w, ids
 
         return STDiskDataset.create_dataset(
-            shard_generator(), data_dir, self.tasks, verbose=self.verbose)
+            shard_generator(), data_dir, self.n_classes, self.tasks, verbose=self.verbose)
 
     def get_shards(self, input_folders, shard_size):
         shard_num = 1
@@ -201,9 +199,9 @@ class PointcloudLoader(DataLoader):
             train_dir = os.path.join(self.processed_data_dir, 'train')
             test_dir = os.path.join(self.processed_data_dir, 'test')
 
-            dataset = STDiskDataset(data_dir=self.processed_data_dir)
-            train = STDiskDataset(data_dir=train_dir)
-            test = STDiskDataset(data_dir=test_dir)
+            dataset = STDiskDataset(data_dir=self.processed_data_dir, n_classes=self.n_classes)
+            train = STDiskDataset(data_dir=train_dir, n_classes=self.n_classes)
+            test = STDiskDataset(data_dir=test_dir, n_classes=self.n_classes)
 
             meta_data = pickle.load(open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'rb'))
             max_atom = meta_data[0]

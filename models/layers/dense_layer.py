@@ -40,7 +40,8 @@ class DenseMol(Layer):
             (self.output_dim,), initializer='zero', name='{}_b'.format(self.name))
 
         output = []
-        for xx in x:
+        X = x['node_features']
+        for xx in X:
             # xx = model_ops.dot(xx, self.W)
             xx = tf.matmul(xx, self.W)
             if self.bias:

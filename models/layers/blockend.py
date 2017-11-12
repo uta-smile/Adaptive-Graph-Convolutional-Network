@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from AGCN.models.layers import Layer
 from AGCN.models.operators import activations
-from AGCN.models.layers.graphconv import glorot
+from AGCN.models.layers.graphconv import glorot, truncate_normal
 
 
 class BlockEnd(Layer):

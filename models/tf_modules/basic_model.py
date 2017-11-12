@@ -178,26 +178,3 @@ class Model(object):
         Get number of tasks.
         """
         raise NotImplementedError
-
-
-    # def find_L(self, L_dict, smiles, mols):
-    #     if L_dict is None:
-    #         ValueError("Laplacian is NOT given!")
-    #
-    #     L_b = []
-    #     for i, mol in enumerate(list(mols)):
-    #         n_atoms = mol.n_atoms
-    #         if smiles[i] in L_dict:
-    #
-    #             if len(L_dict[smiles[i]]) == 1:
-    #                 L_b.append(L_dict[smiles[i]][0])
-    #             else:
-    #                 """hash collision for this smiles[i]"""
-    #                 for l in L_dict[smiles[i]]:
-    #                     if n_atoms == l.shape[0]:
-    #                         L_b.append(l)
-    #                         break
-    #         else:
-    #             ValueError("The smiles not has Laplacian Pre-computed ")
-    #
-    #     return L_b

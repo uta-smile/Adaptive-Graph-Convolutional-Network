@@ -59,7 +59,13 @@ class SequentialGraphMol(object):
                     input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
                     self.output = layer(input)
                 else:
-                    self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
+                    # GraphGatherMol and GraphPoolMol
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+                    self.output = layer(input)
 
             else:
                 self.output = layer(self.output)
@@ -137,7 +143,13 @@ class ResidualGraphMol(SequentialGraphMol):
                     self.block_outputs.append(self.output)
 
                 else:
-                    self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
+                    # GraphGatherMol and GraphPoolMol
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+                    self.output = layer(input)
             else:
                 self.output = layer(self.output)
             # Add layer to the layer list
@@ -194,7 +206,13 @@ class ResidualGraphMolResLap(SequentialGraphMol):
                     self.output = layer(input)
                     self.block_outputs.append(self.output)
                 else:
-                    self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
+                    # GraphGatherMol and GraphPoolMol
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+                    self.output = layer(input)
             else:
                 self.output = layer(self.output)
             # Add layer to the layer list
@@ -268,17 +286,19 @@ class DenseConnectedGraph(SequentialGraphMol):
                     input['block_outputs_dim'] = self.block_outputs_dim
 
                     self.output = layer(input)
-                    # self.output = layer(
-                    #     self.output + [self.graph_topology.get_dataslice_placeholders()] +
-                    #     self.inblock_activations[layer.block_id] + self.block_outputs +
-                    #     self.inblock_activations_dim[layer.block_id] + self.block_outputs_dim
-                    # )
+
                     self.block_outputs += self.output
                     self.block_outputs_dim += [layer.output_n_features]
                     self.current_block_id += 1
 
                 else:
-                    self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
+                    # GraphGatherMol and GraphPoolMol
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+                    self.output = layer(input)
             else:
                 self.output = layer(self.output)
             # Add layer to the layer list
@@ -360,7 +380,13 @@ class DenseConnectedGraphResLap(SequentialGraphMol):
                     self.current_block_id += 1
 
                 else:
-                    self.output = layer(self.output + self.graph_topology.get_topology_placeholders())
+                    # GraphGatherMol and GraphPoolMol
+                    input = dict()
+                    input['node_features'] = self.output  # node features
+                    input['data_slice'] = self.graph_topology.get_dataslice_placeholders()
+                    input['original_laplacian'] = self.graph_topology.get_laplacians_placeholder()
+                    input['lap_slice'] = self.graph_topology.get_lapslice_placeholders()
+                    self.output = layer(input)
             else:
                 self.output = layer(self.output)
             # Add layer to the layer list

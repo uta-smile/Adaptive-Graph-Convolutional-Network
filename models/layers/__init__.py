@@ -10,3 +10,7 @@ from AGCN.models.layers.graphpool import GraphPoolMol
 from AGCN.models.layers.blockend import BlockEnd
 from AGCN.models.layers.densenet_block import DenseBlockEnd
 from AGCN.models.layers.MLP import MLP
+from AGCN.models.layers.fully_connected_layer import FCL
+from AGCN.models.layers.Merge import Merge
+
+

@@ -140,12 +140,12 @@ class Network(object):
 
     def final_evaluate(self):
         # run and record the classifier's evaluation
-        if self.data['validation']:
-            valid_scores = self.classifier.evaluate(
-                self.data['validation'],
-                self.metrics,
-                self.transformers)
-            self.outputs['final_score_validation'] = valid_scores
+        # if self.data['validation']:
+        #     valid_scores = self.classifier.evaluate(
+        #         self.data['validation'],
+        #         self.metrics,
+        #         self.transformers)
+        #     self.outputs['final_score_validation'] = valid_scores
 
         if self.data['testing']:
             test_scores = self.classifier.evaluate(
@@ -164,9 +164,9 @@ class Network(object):
         writer.writerow(output_line)
 
         for metric in self.metrics:
-            if self.outputs['final_score_validation']:
-                output_line = ['on evaluation:', metric.name, self.outputs['final_score_validation'][metric.name]]
-                writer.writerow(output_line)
+            # if self.outputs['final_score_validation']:
+            #     output_line = ['on evaluation:', metric.name, self.outputs['final_score_validation'][metric.name]]
+            #     writer.writerow(output_line)
             if self.outputs['final_score_testing']:
                 output_line = ['on testing:', metric.name, self.outputs['final_score_testing'][metric.name]]
                 writer.writerow(output_line)
@@ -176,10 +176,7 @@ class Network(object):
         return self.outputs
 
     def get_n_classes(self):
-        test_data = self.data['testing']
-        assert len(test_data) > 0
-        n_classes = test_data.y.shape[-1]
-        return n_classes
+        return self.data['testing'].n_classes
 
     def print_save_dir(self):
         print('result scores saved at:\n', self.save_dir)

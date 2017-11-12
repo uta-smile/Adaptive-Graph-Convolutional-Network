@@ -28,7 +28,7 @@ class SingletaskGraphClassifier(Model):
                  final_loss='softmax_cross_entropy',
                  learning_rate=.001,
                  optimizer_type="adam",
-                 learning_rate_decay_time=50,
+                 learning_rate_decay_time=2e5,
                  beta1=.9,
                  beta2=.999,
                  pad_batches=True,
@@ -98,8 +98,9 @@ class SingletaskGraphClassifier(Model):
 
             # setup the exponential decayed learning rate
             learning_rate = tf.train.exponential_decay(self.learning_rate,
-                                                       self.global_step, self.T, 0.7, staircase=True)
+                                                       self.global_step * batch_size, self.T, 0.7, staircase=True)
 
+            learning_rate = tf.maximum(learning_rate, 0.00001)
             # construct train_op with decayed rate
             self.train_op = tf.train.AdamOptimizer(learning_rate).minimize(self.loss_op, global_step=self.global_step)
             # initialize the graph
@@ -109,7 +110,7 @@ class SingletaskGraphClassifier(Model):
     def _build(self):
         # Create target inputs
         self.label_placeholder = tf.placeholder(
-            dtype='bool', shape=(self.batch_size, self.n_classes), name="label_placeholder")
+            dtype='bool', shape=(self.batch_size, ), name="label_placeholder")
 
         # this weight is to mask those unlabeled data and reduce the loss caused by data imbalance
         self.weight_placeholder = tf.placeholder(
@@ -127,6 +128,7 @@ class SingletaskGraphClassifier(Model):
         # label_placeholder of shape (batch_size, n_tasks). Split into n_tasks
         # tensors of shape (batch_size,)
         labels = self.label_placeholder
+        labels = tf.one_hot(tf.to_int32(labels), self.n_classes)
         sample_weights = self.weight_placeholder
 
         # task_label_vector = task_labels
@@ -155,7 +157,7 @@ class SingletaskGraphClassifier(Model):
         assert len(X_b) == self.batch_size
         n_samples = len(X_b)
         if y_b is None:
-            y_b = np.zeros((n_samples, self.n_classes), dtype=np.bool)
+            y_b = np.zeros((n_samples, ), dtype=np.bool)
         if w_b is None:
             w_b = np.zeros((n_samples, ), dtype=np.float32)
         targets_dict = {self.label_placeholder: y_b, self.weight_placeholder: w_b}
@@ -214,9 +216,9 @@ class SingletaskGraphClassifier(Model):
 
                     if epoch % 5 == 0:
                         scores = self.evaluate(test_data, metrics, transformers)
-
                         for metric in metrics:
                             scores_curves[metric.name].append(scores[metric.name])
+                            print("Metric {m} is {s}".format(m=metric.name, s=scores[metric.name]))
 
         return loss_curve, scores_curves
 

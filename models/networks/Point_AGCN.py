@@ -5,12 +5,12 @@ from __future__ import unicode_literals
 
 import tensorflow as tf
 
-from AGCN.models.networks.basic_AGCN import SimpleAGCN
+from AGCN.models.networks.basic_AGCN import Network
 from AGCN.models.tf_modules.tf_graphs import DenseConnectedGraph, DenseConnectedGraphResLap
 from AGCN.models.layers import MLP, DenseMol, SGC_LL, SGC_LL_Reslap, GraphGatherMol, GraphPoolMol, DenseBlockEnd
 
 
-class Point_AGCNResLap(SimpleAGCN):
+class Point_AGCNResLap(Network):
     """
     This DenseNet adds all residual activations from both in-block/out-block layers, and it added
     graph Laplacian residuals from most recent convolution layer
@@ -90,7 +90,7 @@ class Point_AGCNResLap(SimpleAGCN):
         print("Network Constructed Successfully! \n")
 
 
-class Point_MLPDenseAGCNResLap(SimpleAGCN):
+class Point_MLPDenseAGCNResLap(Network):
     def construct_network(self):
         tf.set_random_seed(self.seed)
 

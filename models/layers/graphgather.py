@@ -40,16 +40,14 @@ class GraphGatherMol(Layer):
     def call(self, x, mask=None):
 
         # extract tensors or list of tensors
-        atom_features = x[:self.batch_size]
-        Laplacian = x[self.batch_size: self.batch_size * 2]
-        mol_slice = x[-2]
-        L_slice = x[-1]
+        node_features = x['node_features']
+        mol_slice = x['data_slice']
 
         # Perform the mol gather
-        mol_features = self.graph_gather_mol(atom_features, Laplacian, mol_slice, L_slice, self.batch_size)
-        return self.activation(mol_features)
+        node_features = self.graph_gather_mol(node_features, mol_slice, self.batch_size)
+        return self.activation(node_features)
 
-    def graph_gather_mol(self, atoms, Laplacian, mol_slice, L_slice, batch_size):
+    def graph_gather_mol(self, atoms, mol_slice, batch_size):
         """
         Parameters
         ----------

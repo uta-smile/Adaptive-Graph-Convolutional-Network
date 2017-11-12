@@ -43,14 +43,14 @@ class GraphPoolMol(Layer):
         # here because we use GraphTopologyMol, feed_dict -> x
         # order: atom_feature(list, batch_size * 1), Laplacian(list, batch_size * 1), mol_slice, L_slice
 
-        atom_features = x[:self.batch_size]
-        Laplacian = x[self.batch_size: self.batch_size * 2]
-        mol_slice = x[-2]
-        L_slice = x[-1]
+        node_features = x['node_features']
+        Laplacian = x['original_laplacian']
+        mol_slice = x['data_slice']
+        L_slice = x['lap_slice']
 
         # spectral pooling
-        atom_features = self.graph_pool_mol(atom_features, Laplacian, mol_slice, L_slice)
-        return atom_features
+        node_features = self.graph_pool_mol(node_features, Laplacian, mol_slice, L_slice)
+        return node_features
 
     def graph_pool_mol(self, atoms, Laplacian, mol_slice, L_slice):
         """

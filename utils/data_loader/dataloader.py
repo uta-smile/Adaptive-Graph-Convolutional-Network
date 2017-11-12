@@ -21,6 +21,7 @@ class DataLoader(object):
                  dataset_name,
                  file_name=None,
                  tasks=None,
+                 n_classes=2,
                  smiles_field=None,
                  id_field=None,
                  feature=None,
@@ -37,9 +38,9 @@ class DataLoader(object):
         self.file_name = file_name  # raw data file name, e.g clintox.csv.gz
         if self.file_name:
             # the data is in a file, create file_dir to use
-            self.file_dir = os.path.join(self.data_dir, self.file_name)     # raw data directory
+            self.file_dir = os.path.join(self.data_dir, self.file_name)     # raw data saved directory
         else:
-            self.file_dir = None
+            self.file_dir = None    # file directory not given, Or data is saved as a folder
         self.download_url = download_url
         self.processed_data_dir = os.path.join(self.data_dir, 'processed_data', self.dataset_name)
         self.verbose = verbose
@@ -76,6 +77,9 @@ class DataLoader(object):
             self.id_field = smiles_field
         else:
             self.id_field = id_field
+
+        "define number of class for each task, if not specified, it is 2, binary classification for each task"
+        self.n_classes = n_classes
 
         "define feature extractor. if feature = None, it is image, pointcloud, no need for featurizer"
         self.feature = feature  # feature type -> featurizer function

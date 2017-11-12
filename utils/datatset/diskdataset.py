@@ -46,6 +46,7 @@ class DiskDataset(Dataset):
           Filename for data directory. Creates a temp directory if none specified.
         tasks: list
           List of tasks for this dataset.
+        n_classes:
         verbose:
         """
         if data_dir is None:
@@ -659,99 +660,3 @@ class DiskDataset(Dataset):
         return self.metadata_df["y_stds"]
 
 
-class STDiskDataset(DiskDataset):
-    """Single task DiskDataset"""
-    def pad_batch_st(self, batch_size, X_b, y_b, w_b, ids_b):
-        """Pads batch to have size precisely batch_size elements.
-        Fills in batch by wrapping around samples till whole batch is filled.
-
-        # This function is handle single task data
-        """
-        num_samples = len(X_b)
-        if num_samples == batch_size:
-            return (X_b, y_b, w_b, ids_b)
-        else:
-            # By invariant of when this is called, can assume num_samples > 0
-            # and num_samples < batch_size
-            if len(X_b.shape) > 1:
-                feature_shape = X_b.shape[1:]
-                X_out = np.zeros((batch_size,) + feature_shape, dtype=X_b.dtype)
-            else:
-                X_out = np.zeros((batch_size,), dtype=X_b.dtype)
-
-            y_out = np.zeros((batch_size, ), dtype=y_b.dtype)
-            w_out = np.zeros((batch_size, ), dtype=w_b.dtype)
-            ids_out = np.zeros((batch_size, ), dtype=ids_b.dtype)
-
-            # Fill in batch arrays
-            start = 0
-            while start < batch_size:
-                num_left = batch_size - start
-                if num_left < num_samples:
-                    increment = num_left
-                else:
-                    increment = num_samples
-                X_out[start:start + increment] = X_b[:increment]
-                y_out[start:start + increment] = y_b[:increment]
-                w_out[start:start + increment] = w_b[:increment]
-                ids_out[start:start + increment] = ids_b[:increment]
-                start += increment
-            return X_out, y_out, w_out, ids_out
-
-    def iterbatches(self,
-                    batch_size=None,
-                    epoch=0,
-                    deterministic=False,
-                    pad_batches=False):
-
-        """Get an object that iterates over minibatches from the dataset.
-        Each minibatch is returned as a tuple of four numpy arrays: (X, y, w, ids).
-        """
-        def iterate(dataset):
-            num_shards = dataset.get_number_shards()
-            if not deterministic:
-                shard_perm = np.random.permutation(num_shards)
-            else:
-                shard_perm = np.arange(num_shards)
-            for i in range(num_shards):
-                X, y, w, ids = dataset.get_shard(shard_perm[i])
-                n_samples = X.shape[0]
-                # TODO(rbharath): This happens in tests sometimes, but don't understand why?
-                # Handle edge case.
-                if n_samples == 0:
-                    continue
-                if not deterministic:
-                    sample_perm = np.random.permutation(n_samples)
-                else:
-                    sample_perm = np.arange(n_samples)
-                if batch_size is None:
-                    shard_batch_size = n_samples
-                else:
-                    shard_batch_size = batch_size
-                interval_points = np.linspace(
-                    0,
-                    n_samples,
-                    np.ceil(float(n_samples) / shard_batch_size) + 1,
-                    dtype=int)
-                for j in range(len(interval_points) - 1):
-                    indices = range(interval_points[j], interval_points[j + 1])
-                    perm_indices = sample_perm[indices]
-                    X_batch = X[perm_indices]
-
-                    if y is not None:
-                        y_batch = y[perm_indices]
-                    else:
-                        y_batch = None
-
-                    if w is not None:
-                        w_batch = w[perm_indices]
-                    else:
-                        w_batch = None
-
-                    ids_batch = ids[perm_indices]
-                    if pad_batches:
-                        (X_batch, y_batch, w_batch, ids_batch) = self.pad_batch_st(
-                            shard_batch_size, X_batch, y_batch, w_batch, ids_batch)
-                    yield (X_batch, y_batch, w_batch, ids_batch)
-
-        return iterate(self)
