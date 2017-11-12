@@ -35,7 +35,8 @@ class SegmentationGraph(object):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            assert type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL', 'DenseMol', 'FCL']
+            assert type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL',
+                                            'DenseMol', 'FCL', 'Merge']
             if classifer:
                 assert len(self.backbone_layers) > 0
                 if type(layer).__name__ in ['FCL']:

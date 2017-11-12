@@ -44,6 +44,7 @@ class FCL(Layer):
                     (self.output_dim,), initializer='zero', name='{}_bias'.format(self.name))
 
     def __call__(self, x):
+        self.build()
 
         X = x['node_features']
 

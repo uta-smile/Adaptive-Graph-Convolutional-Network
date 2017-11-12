@@ -38,7 +38,7 @@ class SequentialGraphMol(object):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL', 'DenseMol']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
@@ -108,7 +108,7 @@ class ResidualGraphMol(SequentialGraphMol):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL', 'BlockEnd']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL', 'BlockEnd', 'DenseMol']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
@@ -170,7 +170,8 @@ class ResidualGraphMolResLap(SequentialGraphMol):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL_Reslap', 'BlockEnd']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL_Reslap',
+                                        'BlockEnd', 'DenseMol']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
@@ -248,7 +249,8 @@ class DenseConnectedGraph(SequentialGraphMol):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL', 'DenseBlockEnd']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL',
+                                        'DenseBlockEnd', 'DenseMol']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'
@@ -330,7 +332,8 @@ class DenseConnectedGraphResLap(SequentialGraphMol):
         """Adds a new layer to model."""
         with self.graph.as_default():
             # For graphical layers, add connectivity placeholders
-            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol', 'SGC_LL_Reslap', 'DenseBlockEnd']:
+            if type(layer).__name__ in ['MLP', 'GraphGatherMol', 'GraphPoolMol',
+                                        'SGC_LL_Reslap', 'DenseBlockEnd', 'DenseMol']:
                 if len(self.layers) > 0 and hasattr(self.layers[-1], "__name__"):
                     assert self.layers[-1].__name__ != "GraphGatherMol", \
                         'Cannot use GraphConv or GraphGather layers after a GraphGather'

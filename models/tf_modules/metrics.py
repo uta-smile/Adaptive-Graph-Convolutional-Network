@@ -246,14 +246,15 @@ class Metric(object):
 
         if self.mode == "classification":
             n_classes = y_pred.shape[-1]
-            if self.name in ["roc_auc_score", "average_precision_score"]:
+            if self.name in ["task_averaged-roc_auc_score", "average_precision_score",
+                             "task_averaged-average_precision_score", "roc_auc_score", ]:
 
                 """ make sure y_pred, p_true are one-hot """
                 y_true = to_one_hot(y_true, n_classes).astype(int)
                 y_true = np.reshape(y_true, (n_samples, n_classes))
                 y_pred = np.reshape(y_pred, (n_samples, n_classes))
 
-            elif self.name in ["accuracy"]:
+            elif self.name in ["task_averaged-accuracy", "accuracy"]:
 
                 """ for other metric, convert ground-truth to 1-d , make sure prediction is (n_sample, n-class)"""
                 y_pred = np.reshape(y_pred, (n_samples, n_classes))
@@ -265,7 +266,7 @@ class Metric(object):
         # if self.threshold is not None:
         #     y_pred = np.greater(y_pred, threshold)
         try:
-            if self.metric.__name__ in ['accuracy']:
+            if self.metric.__name__ in ["task_averaged-accuracy", "accuracy"]:
                 metric_value = self.metric(y_true, y_pred)
             else:
                 metric_value = self.metric(y_true, y_pred, average='samples')

@@ -22,11 +22,11 @@ class DataLoader(object):
                  file_name=None,
                  tasks=None,
                  n_classes=2,
-                 smiles_field=None,
+                 smiles_field='smiles',
                  id_field=None,
                  feature=None,
                  splitter='index',
-                 split_frac=[0.8, 0.1, 0.1],
+                 split_frac=[0.8, 0.2],
                  transformer='normalization_w',
                  download_url=None,
                  verbose=True):
@@ -98,7 +98,7 @@ class DataLoader(object):
         self.transformer_types = transformer
         self.transformers = []
 
-    def featurize(self, shard_size=2048):
+    def featurize(self, shard_size=1024):
         """
             Featurize provided data files and write to specified location.
         """
@@ -202,12 +202,10 @@ class DataLoader(object):
             print("Loading Saved Data from Disk.......")
 
             train_dir = os.path.join(self.processed_data_dir, 'train')
-            valid_dir = os.path.join(self.processed_data_dir, 'valid')  # validation
             test_dir = os.path.join(self.processed_data_dir, 'test')
 
             dataset = DiskDataset(data_dir=self.processed_data_dir)
             train = DiskDataset(data_dir=train_dir)
-            valid = DiskDataset(data_dir=valid_dir)
             test = DiskDataset(data_dir=test_dir)
 
             meta_data = pickle.load(open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'rb'))
@@ -290,18 +288,14 @@ class DataLoader(object):
 
             # create processed dirs as train, valid, test
             train_dir = os.path.join(self.processed_data_dir, 'train')
-            valid_dir = os.path.join(self.processed_data_dir, 'valid')
             test_dir = os.path.join(self.processed_data_dir, 'test')
 
             print("Saving Data at %s...", self.processed_data_dir)
-            train, valid, test = splitter.train_valid_test_split(
+            train, test = splitter.train_test_split(
                 dataset,
                 train_dir=train_dir,
-                valid_dir=valid_dir,
                 test_dir=test_dir,
                 frac_train=self.split_frac[0],
-                frac_valid=self.split_frac[1],
-                frac_test=self.split_frac[2],
             )
 
-        return self.tasks, (train, valid, test), self.transformers, max_atom
+        return self.tasks, (train, test), self.transformers, max_atom

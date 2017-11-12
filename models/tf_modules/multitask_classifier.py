@@ -64,6 +64,7 @@ class MultitaskGraphClassifier(Model):
                  n_tasks,
                  logdir=None,
                  batch_size=50,
+                 n_classes=2,
                  final_loss='cross_entropy',
                  learning_rate=.001,
                  optimizer_type="adam",
@@ -80,6 +81,7 @@ class MultitaskGraphClassifier(Model):
         self.n_tasks = n_tasks
         self.final_loss = final_loss
         self.model = model
+        self.n_classes = n_classes
 
         config = tf.ConfigProto(allow_soft_placement=True)
         config.gpu_options.allow_growth = True
