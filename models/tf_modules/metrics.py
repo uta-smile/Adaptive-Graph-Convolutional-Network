@@ -246,10 +246,11 @@ class Metric(object):
 
         if self.mode == "classification":
             n_classes = y_pred.shape[-1]
-            if self.name in ["task_averaged-roc_auc_score", "average_precision_score",
-                             "task_averaged-average_precision_score", "roc_auc_score", ]:
+            if self.name in ["task_averaged-roc_auc_score", "roc_auc_score",
+                             "task_averaged-average_precision_score", "average_precision_score",
+                             ]:
 
-                """ make sure y_pred, p_true are one-hot """
+                """ make sure y_pred, p_true are both one-hot """
                 y_true = to_one_hot(y_true, n_classes).astype(int)
                 y_true = np.reshape(y_true, (n_samples, n_classes))
                 y_pred = np.reshape(y_pred, (n_samples, n_classes))
@@ -258,18 +259,40 @@ class Metric(object):
 
                 """ for other metric, convert ground-truth to 1-d , make sure prediction is (n_sample, n-class)"""
                 y_pred = np.reshape(y_pred, (n_samples, n_classes))
-                # y_pred = from_one_hot(y_pred).astype(int)
 
+            elif self.name in ["task_averaged-precision_score", "precision_score",
+                               "task_averaged-recall_score", "recall_score",
+                               ]:
+                """ for precision/recall metric, convert ground-truth to 1-d , prediction 1-d as (n_sample,)"""
+                y_pred = np.argmax(y_pred, axis=1)
+                y_pred = np.reshape(y_pred, (n_samples,)).astype(np.int64)
+                y_true = y_true.astype(np.int64)
         else:
+            # regression
             y_pred = np.reshape(y_pred, (n_samples,))
 
         # if self.threshold is not None:
         #     y_pred = np.greater(y_pred, threshold)
         try:
-            if self.metric.__name__ in ["task_averaged-accuracy", "accuracy"]:
+            if self.name in ["task_averaged-accuracy", "accuracy"]:
                 metric_value = self.metric(y_true, y_pred)
-            else:
+            elif self.name in ["task_averaged-precision_score", "precision_score",
+                               "task_averaged-recall_score", "recall_score",
+                               ]:
+                if not self.is_multitask:
+                    # single task, -> multiple label classification
+                    metric_value = self.metric(y_true, y_pred, average='samples')
+                else:
+                    # multi-task, each task is binary classification
+                    metric_value = self.metric(y_true, y_pred, average='binary')
+            elif self.name in ["task_averaged-roc_auc_score", "roc_auc_score",
+                                "task_averaged-average_precision_score", "average_precision_score",
+                                ]:
                 metric_value = self.metric(y_true, y_pred, average='samples')
+            else:
+                # regression -> RMSE
+                metric_value = self.metric(y_true, y_pred)
+
         except (AssertionError, ValueError) as e:
             warnings.warn("Error calculating metric %s: %s" % (self.name, e))
             metric_value = np.nan
