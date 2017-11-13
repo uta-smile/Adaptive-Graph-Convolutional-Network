@@ -70,7 +70,7 @@ class Network(object):
         elif self.tasks_type == 'singletask_classification':
             self.classifier = SingletaskGraphClassifier(
                 self.graph_model,
-                n_classes=self.get_n_classes(),
+                n_classes=self.hyper_parameters['n_classes'],
                 batch_size=self.hyper_parameters['batch_size'],
                 learning_rate=self.hyper_parameters['learning_rate'],
                 optimizer_type=self.hyper_parameters['optimizer_type'],
@@ -174,9 +174,6 @@ class Network(object):
 
     def get_outputs(self):
         return self.outputs
-
-    def get_n_classes(self):
-        return self.data['testing'].n_classes
 
     def print_save_dir(self):
         print('result scores saved at:\n', self.save_dir)

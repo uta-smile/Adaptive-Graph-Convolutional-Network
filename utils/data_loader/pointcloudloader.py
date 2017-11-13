@@ -11,11 +11,11 @@ from os.path import isfile, join
 import sklearn.cluster as sc
 
 from AGCN.utils.data_loader import DataLoader
-from AGCN.utils.datatset import STDiskDataset
 from AGCN.models import Graph
+from AGCN.utils.save import save_to_disk, load_from_disk
 
-from AGCN.utils.transformer import BalancingTransformer, NormalizationTransformer
-from AGCN.utils.splitter import IndexSplitter, ScaffoldSplitter, RandomSplitter
+
+NUM_CLUSTER = 50
 
 
 class PointcloudLoader(DataLoader):
@@ -43,24 +43,91 @@ class PointcloudLoader(DataLoader):
 
         if not isinstance(input_folder, list):
             input_folders = [input_folder]
+        else:
+            input_folders = input_folder
 
-        def shard_generator():
-            for shard_num, (shard, pc_dir) in enumerate(
-                    self.get_shards(input_folders, shard_size)):
+        metadata_rows = []
+        all_X, all_y, all_w, all_ids = [], [], [], []
+        for shard_num, (shard, pc_dir) in enumerate(self.get_shards(input_folders, shard_size)):
 
-                X, valid_inds = self.featurize_shard(shard, pc_dir)
-                ids = np.asarray(shard)  # ids is the
-                # Featurize task results iff they exist.
-                # y is 1-d label, just tell the class id, 0-25 for sydney
-                _, y = self.get_labels(shard, pc_dir)
-                w = np.ones((y.shape[0], ))
-                # Filter out examples where featurization failed.
-                y, w = (y[valid_inds], w[valid_inds])
-                assert len(X) == len(ids) == len(y) == len(w)
-                yield X, y, w, ids
+            X, valid_inds = self.featurize_shard(shard, pc_dir)
+            ids = np.asarray(shard)  # ids is the
+            # Featurize task results iff they exist.
+            # y is 1-d label, just tell the class id, 0-25 for sydney
+            _, y = self.get_labels(shard, pc_dir)
+            w = np.ones((y.shape[0], ))
+            # Filter out examples where featurization failed.
+            y, w = (y[valid_inds], w[valid_inds])
+            assert len(X) == len(ids) == len(y) == len(w)
 
-        return STDiskDataset.create_dataset(
-            shard_generator(), data_dir, self.n_classes, self.tasks, verbose=self.verbose)
+            """ save shard (x,y,ids, w)"""
+            basename = "shard-%d" % shard_num
+            metadata_rows.append(self.write_data_to_disk(self.processed_data_dir, basename, X, y, w, ids))
+
+            all_X.append(X)
+            all_y.append(y)
+            all_w.append(w)
+            all_ids.append(ids)
+
+        """ save the meta data of training dataset to local """
+        meta_data1 = list()
+        meta_data1.append(metadata_rows)
+        with open(os.path.join(self.processed_data_dir, 'meta_files.pkl'), 'wb') as f:
+            pickle.dump(meta_data1, f)
+
+        all_X = np.concatenate(all_X)
+        all_y = np.squeeze(np.concatenate(all_y))
+        all_w = np.squeeze(np.concatenate(all_w))
+        all_ids = np.squeeze(np.concatenate(all_ids))
+
+        # shuffle data
+        order = np.arange(0, all_X.shape[0])
+        np.random.shuffle(order)
+        all_X = all_X[order]
+        all_y = all_y[order]
+        all_w = all_w[order]
+        all_ids = all_ids[order]
+
+        # split them as train and test
+        n_train = int(self.split_frac[0] * all_X.shape[0])
+
+        train_dataset = dict()
+        train_dataset['X'] = all_X[:n_train]
+        train_dataset['y'] = all_y[:n_train]
+        train_dataset['w'] = all_w[:n_train]
+        train_dataset['ids'] = all_ids[:n_train]
+
+        test_dataset = dict()
+        test_dataset['X'] = all_X[n_train:]
+        test_dataset['y'] = all_y[n_train:]
+        test_dataset['w'] = all_w[n_train:]
+        test_dataset['ids'] = all_ids[n_train:]
+
+        return train_dataset, test_dataset
+
+    @staticmethod
+    def write_data_to_disk(
+            data_dir,
+            basename,
+            X=None,
+            y=None,
+            w=None,
+            ids=None):
+
+        out_X = "%s-X.joblib" % basename
+        save_to_disk(X, os.path.join(data_dir, out_X))
+
+        out_y = "%s-y.joblib" % basename
+        save_to_disk(y, os.path.join(data_dir, out_y))
+
+        out_w = "%s-seg.joblib" % basename
+        save_to_disk(w, os.path.join(data_dir, out_w))
+
+        out_ids = "%s-y1h.joblib" % basename
+        save_to_disk(ids, os.path.join(data_dir, out_ids))
+
+        # note that this corresponds to the _construct_metadata column order
+        return {'basename': basename, 'X': out_X, 'y': out_y, 'w': out_w, 'ids': out_ids}
 
     def get_shards(self, input_folders, shard_size):
         shard_num = 1
@@ -129,7 +196,7 @@ class PointcloudLoader(DataLoader):
 
         binType = np.dtype(dict(names=names, formats=formats))
 
-        cluster_num = 50  # min_node in this folder is 13 precomputed
+        cluster_num = NUM_CLUSTER  # min_node in this folder is 13 precomputed
         clusterer = sc.AgglomerativeClustering(n_clusters=cluster_num)
 
         X = []
@@ -188,6 +255,64 @@ class PointcloudLoader(DataLoader):
 
         return adj_list, adj_matrix
 
+    def load_back_from_disk(self, data_dir):
+        """
+        load data backas Train/test from disk
+        :return: Train/Test STDiskDataset
+        """
+        """load back metadata_df"""
+        meta_data = pickle.load(open(os.path.join(data_dir, 'meta_files.pkl'), 'rb'))
+        metadata_rows = meta_data[0]
+
+        """itershard by loading from disk"""
+        all_X, all_y, all_w, all_ids = [], [], [], []
+
+        for _, row in enumerate(metadata_rows):
+            # each row is a dict, contains file name for X, y, seg, y_one_hot
+            X = np.array(load_from_disk(os.path.join(data_dir, row['X'])))
+            y = np.array(load_from_disk(os.path.join(data_dir, row['y'])))
+            w = np.array(load_from_disk(os.path.join(data_dir, row['w'])))
+            ids = np.array(load_from_disk(os.path.join(data_dir, row['ids'])))
+
+            """ stack to list"""
+            all_X.append(X)
+            all_y.append(y)
+            all_w.append(w)
+            all_ids.append(ids)
+
+        """ return a Dataset contains all X, y, w, ids"""
+
+        all_X = np.concatenate(all_X)
+        all_y = np.squeeze(np.concatenate(all_y))
+        all_w = np.squeeze(np.concatenate(all_w))
+        all_ids = np.squeeze(np.concatenate(all_ids))
+        assert all_X.shape[0] == all_y.shape[0] == all_w.shape[0] == all_ids.shape[0]
+
+        # shuffle data
+        order = np.arange(0, all_X.shape[0])
+        np.random.shuffle(order)
+        all_X = all_X[order]
+        all_y = all_y[order]
+        all_w = all_w[order]
+        all_ids = all_ids[order]
+
+        # split them as train and test
+        n_train = int(self.split_frac[0] * all_X.shape[0])
+
+        train_dataset = dict()
+        train_dataset['X'] = all_X[:n_train]
+        train_dataset['y'] = all_y[:n_train]
+        train_dataset['w'] = all_w[:n_train]
+        train_dataset['ids'] = all_ids[:n_train]
+
+        test_dataset = dict()
+        test_dataset['X'] = all_X[n_train:]
+        test_dataset['y'] = all_y[n_train:]
+        test_dataset['w'] = all_w[n_train:]
+        test_dataset['ids'] = all_ids[n_train:]
+
+        return train_dataset, test_dataset
+
     def load(self):
         """Load chemical datasets. Raw data is given as SMILES format"""
 
@@ -196,102 +321,22 @@ class PointcloudLoader(DataLoader):
 
             print("Loading Saved Data from Disk.......")
 
-            train_dir = os.path.join(self.processed_data_dir, 'train')
-            test_dir = os.path.join(self.processed_data_dir, 'test')
-
-            dataset = STDiskDataset(data_dir=self.processed_data_dir, n_classes=self.n_classes)
-            train = STDiskDataset(data_dir=train_dir, n_classes=self.n_classes)
-            test = STDiskDataset(data_dir=test_dir, n_classes=self.n_classes)
+            train, test = self.load_back_from_disk(data_dir=self.processed_data_dir)
 
             meta_data = pickle.load(open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'rb'))
             max_atom = meta_data[0]
 
-            print("Transforming Data.")
-            if not self.transformer_types:
-                if self.transformer_types == 'normalization_y':
-                    self.transformers += [
-                        NormalizationTransformer(transform_y=True, dataset=dataset)
-                    ]
-                elif self.transformer_types == 'normalization_w':
-                    self.transformers += [
-                        NormalizationTransformer(transform_w=True, dataset=dataset)
-                    ]
-                elif self.transformer_types == 'balancing_w':
-                    self.transformers += [
-                        BalancingTransformer(transform_w=True, dataset=dataset)
-                    ]
-                elif self.transformer_types == 'balancing_y':
-                    self.transformers += [
-                        BalancingTransformer(transform_y=True, dataset=dataset)
-                    ]
-                else:
-                    ValueError("Transformer type Not defined!{}".format(self.transformer_types))
-
         else:
             print("Loading and Featurizing Data.......")
-            # loader = dc.data.CSVLoader(
-            #     tasks=self.tasks, smiles_field=self.smiles_field, featurizer=self.Featurizer)
-            dataset = self.featurize(shard_size=2048)
 
-            print("Transforming Data.")
-            if not self.transformer_types:
-                if self.transformer_types == 'normalization_y':
-                    self.transformers += [
-                        NormalizationTransformer(transform_y=True, dataset=dataset)
-                    ]
-                elif self.transformer_types == 'normalization_w':
-                    self.transformers += [
-                        NormalizationTransformer(transform_w=True, dataset=dataset)
-                    ]
-                elif self.transformer_types == 'balancing_w':
-                    self.transformers += [
-                        BalancingTransformer(transform_w=True, dataset=dataset)
-                    ]
-                elif self.transformer_types == 'balancing_y':
-                    self.transformers += [
-                        BalancingTransformer(transform_y=True, dataset=dataset)
-                    ]
-                else:
-                    ValueError("Transformer type Not defined!{}".format(self.transformer_types))
-
-            if len(self.transformers) > 0:
-                for transformer in self.transformers:
-                    # pass dataset through maybe more than one transformer
-                    dataset = transformer.transform(dataset)
+            train, test = self.featurize(shard_size=2048)
 
             """max_atom is the max atom of molecule in all_dataset """
-            max_atom = self.find_max_atom(dataset)
+            max_atom = NUM_CLUSTER
             meta_data.append(max_atom)
             meta_data.extend(self.tasks)
             with open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'wb') as f:
                 pickle.dump(meta_data, f)
-
-            """
-            Split Dataset
-            """
-            print("Splitting Date to Train/Validation/Testing")
-            splitters = {
-                'index': IndexSplitter(),
-                'random': RandomSplitter(),
-                'scaffold': ScaffoldSplitter()
-            }
-
-            if self.splitter not in splitters:
-                raise ValueError("Splitter not defined!")
-            else:
-                splitter = splitters[self.splitter]
-
-            # create processed dirs as train, valid, test
-            train_dir = os.path.join(self.processed_data_dir, 'train')
-            test_dir = os.path.join(self.processed_data_dir, 'test')
-
-            print("Saving Data at %s...", self.processed_data_dir)
-            train, test = splitter.train_test_split(
-                dataset,
-                train_dir=train_dir,
-                test_dir=test_dir,
-                frac_train=self.split_frac[0],
-            )
 
         return self.tasks, (train, test), self.transformers, max_atom
 

@@ -49,9 +49,8 @@ class PartSegmentation(object):
                  verbose=True,
                  n_feature=128):
 
+        self.model = model
         with self.model.graph.as_default():
-
-            self.model = model
 
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
@@ -234,7 +233,7 @@ class PartSegmentation(object):
         with self.model.graph.as_default():
             with self.sess.as_default():
                 flog = open(os.path.join(self.logdir, 'log.txt'), 'w')
-                num_data = train_data.shape[0]
+                num_data = train_data['X'].shape[0]
 
                 """load data"""
                 print ("Loading training data....")

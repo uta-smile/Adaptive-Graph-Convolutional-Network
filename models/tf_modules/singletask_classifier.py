@@ -186,14 +186,27 @@ class SingletaskGraphClassifier(Model):
             loss_curve = []
             scores_curves = {metric.name: [] for metric in metrics}  # multiple metrics, task-averaged scores
 
+            num_data = train_data['X'].shape[0]
+
+            """load data"""
+            print("Loading training data....")
+            X = train_data['X']
+            y = train_data['y']
+            w = train_data['w']
+            total_num_batch = int(num_data // self.batch_size)
+
             with self.sess.as_default():
                 for epoch in range(nb_epoch):
                     log("Starting epoch %d" % epoch, self.verbose)
 
-                    for batch_num, (X_b, y_b, w_b, ids_b) in enumerate(
-                            train_data.iterbatches(self.batch_size, pad_batches=self.pad_batches)):
-
+                    for batch_num in range(total_num_batch):
                         # print(batch_num)
+                        begidx = batch_num * self.batch_size
+                        endidx = (batch_num + 1) * self.batch_size
+                        X_b = X[begidx: endidx]
+                        y_b = y[begidx: endidx]
+                        w_b = w[begidx: endidx]
+
                         """ these network models contains SGC_LL layer,
                         which also return updated residual Laplacian"""
                         if type(self.model).__name__ in ['ResidualGraphMolResLap',
@@ -215,22 +228,22 @@ class SingletaskGraphClassifier(Model):
                             # self.watch_batch(X_b, ids_b, res_L, L)
 
                     if epoch % 5 == 0:
-                        scores = self.evaluate(test_data, metrics, transformers)
+                        scores = self.evaluate(test_data, metrics)
                         for metric in metrics:
                             scores_curves[metric.name].append(scores[metric.name])
                             print("Metric {m} is {s}".format(m=metric.name, s=scores[metric.name]))
 
         return loss_curve, scores_curves
 
-    def predict(self, dataset, transformers=[], **kwargs):
-        """Wraps predict to set batch_size/padding."""
-        return super(SingletaskGraphClassifier, self).predict(
-            dataset, transformers, batch_size=self.batch_size)
-
-    def predict_proba(self, dataset, transformers=[], n_classes=2, **kwargs):
-        """Wraps predict_proba to set batch_size/padding."""
-        return super(SingletaskGraphClassifier, self).predict_proba(
-            dataset, transformers, n_classes=self.n_classes, batch_size=self.batch_size)
+    # def predict(self, dataset, transformers=[], **kwargs):
+    #     """Wraps predict to set batch_size/padding."""
+    #     return super(SingletaskGraphClassifier, self).predict(
+    #         dataset, transformers, batch_size=self.batch_size)
+    #
+    # def predict_proba(self, dataset, transformers=[], n_classes=2, **kwargs):
+    #     """Wraps predict_proba to set batch_size/padding."""
+    #     return super(SingletaskGraphClassifier, self).predict_proba(
+    #         dataset, transformers, n_classes=self.n_classes, batch_size=self.batch_size)
 
     def predict_on_batch(self, X):
         """Return model output for the provided input.
@@ -258,10 +271,6 @@ class SingletaskGraphClassifier(Model):
             batch_outputs = self.sess.run(self.outputs, feed_dict=feed_dict)
 
         return batch_outputs
-
-    def get_num_tasks(self):
-        """Needed to use Model.predict() from superclass."""
-        return self.n_tasks
 
     @staticmethod
     def pad_graphs(batch_size, X_b):
@@ -301,10 +310,92 @@ class SingletaskGraphClassifier(Model):
         if not isinstance(metrics, list):
             metrics = [metrics]
 
-        evaluator = Evaluator(self, dataset, transformers)
+        y = dataset['y']  # 1-d label, just class id
+        w = dataset['w']
 
-        scores = evaluator.computer_singletask_performance(metrics)
+        # make sure shape is (n-sample,)
+        y = np.squeeze(y)
+        w = np.squeeze(w)
+        if not len(metrics):
+            return {}
+        else:
+            mode = metrics[0].mode
+
+        if mode == "classification":
+            y_pred = self.predict_proba(dataset, self.n_classes)  # batch_size = None, return all
+            # y_pred_print = self.model.predict(self.dataset, self.output_transformers).astype(int)
+        else:
+            y_pred = self.predict(dataset)
+            # y_pred_print = y_pred
+
+        scores = {}
+        for metric in metrics:
+            scores[metric.name] = metric.compute_singletask_metric(y, y_pred, w)
+
         return scores
 
+    def predict(self, dataset):
 
+        y_preds = []
+        X = dataset['X']
+        total_num_batch = int(X.shape[0] // self.batch_size)
+
+        for batch_num in range(total_num_batch):
+            begidx = batch_num * self.batch_size
+            endidx = (batch_num + 1) * self.batch_size
+            X_batch = X[begidx: endidx]
+            n_samples = len(X_batch)
+
+            y_pred_batch = self.predict_on_batch(X_batch)
+            # Discard any padded predictions
+            y_pred_batch = y_pred_batch[:n_samples]
+            y_pred_batch = np.reshape(y_pred_batch, (n_samples,))
+            y_preds.append(y_pred_batch)
+
+        y_pred = np.concatenate(y_preds)
+
+        # The iterbatches does padding with zero-weight examples on the last batch.
+        # Remove padded examples.
+        n_samples = len(X)
+        y_pred = y_pred[:n_samples]
+        y_pred = np.reshape(y_pred, (n_samples, ))
+
+        return y_pred
+
+    def predict_proba(self, dataset, n_classes=2):
+        """
+        TODO: Do transformers even make sense here?
+
+        Returns:
+          y_pred: numpy ndarray of shape (n_samples, n_classes*n_tasks)
+        """
+        X = dataset['X']
+        total_num_batch = int(X.shape[0] // self.batch_size)
+        y_preds = []
+        for batch_num in range(total_num_batch):
+
+            begidx = batch_num * self.batch_size
+            endidx = (batch_num + 1) * self.batch_size
+            X_batch = X[begidx: endidx]
+
+            n_samples = len(X_batch)
+            y_pred_batch = self.predict_proba_on_batch(X_batch)
+            y_pred_batch = y_pred_batch[:n_samples, :]
+            y_pred_batch = np.reshape(y_pred_batch, (n_samples, n_classes))
+            y_preds.append(y_pred_batch)
+
+        if len(X[total_num_batch * self.batch_size:]) > 0:
+            """ after for there is some sample left, Or for loop is executed"""
+            X_batch = X[total_num_batch * self.batch_size:]
+            n_samples = len(X_batch)
+            y_pred_batch = self.predict_proba_on_batch(X_batch)
+            y_pred_batch = y_pred_batch[:n_samples, :]
+            y_pred_batch = np.reshape(y_pred_batch, (n_samples, n_classes))
+            y_preds.append(y_pred_batch)
+
+        y_pred = np.concatenate(y_preds)
+        n_samples = len(X)
+        y_pred = y_pred[:n_samples]
+        y_pred = np.reshape(y_pred, (n_samples, n_classes))
+        return y_pred
 

@@ -36,6 +36,8 @@ NUM_POINT = 1024
 TRAIN_NUM = 6000
 TEST_NUM = 1024
 
+NUM_CLUSTER=50
+
 
 class MeshLoader(PointcloudLoader):
     """
@@ -80,7 +82,7 @@ class MeshLoader(PointcloudLoader):
             """ save shard (x,y,ids, w)"""
             basename = "shard-%d" % shard_num
             metadata_rows.append(
-                STDiskDataset.write_data_to_disk(train_dir, basename, self.tasks, X, y, w, ids))
+                self.write_data_to_disk(train_dir, basename, X, y, w, ids))
 
             """ stack to list"""
             all_X.append(X)
@@ -104,10 +106,14 @@ class MeshLoader(PointcloudLoader):
         all_w = np.squeeze(np.concatenate(all_w))
         all_ids = np.squeeze(np.concatenate(all_ids))
         assert all_X.shape[0] == all_y.shape[0] == all_w.shape[0] == all_ids.shape[0]
-        train_dataset = STDiskDataset.from_numpy(all_X, all_y, all_w, all_ids,
-                                                 tasks=self.tasks,
-                                                 n_classes=self.n_classes,
-                                                 data_dir=train_dir)
+
+        # create output dataset
+        train_dataset = dict()
+        train_dataset['X'] = all_X
+        train_dataset['y'] = all_y
+        train_dataset['w'] = all_w
+        train_dataset['ids'] = all_ids
+
 
         metadata_rows = []
         all_X, all_y, all_w, all_ids = [], [], [], []
@@ -124,7 +130,7 @@ class MeshLoader(PointcloudLoader):
             """ save shard (x,y,ids, w)"""
             basename = "shard-%d" % shard_num
             metadata_rows.append(
-                STDiskDataset.write_data_to_disk(test_dir, basename, self.tasks, X, y, w, ids))
+                self.write_data_to_disk(test_dir, basename, X, y, w, ids))
 
             """ stack to list"""
             all_X.append(X)
@@ -144,12 +150,39 @@ class MeshLoader(PointcloudLoader):
         all_w = np.squeeze(np.concatenate(all_w))
         all_ids = np.squeeze(np.concatenate(all_ids))
         assert all_X.shape[0] == all_y.shape[0] == all_w.shape[0] == all_ids.shape[0]
-        test_dataset = STDiskDataset.from_numpy(all_X, all_y, all_w, all_ids,
-                                                tasks=self.tasks,
-                                                n_classes=self.n_classes,
-                                                data_dir=test_dir)
+
+        # create output dataset
+        test_dataset = dict()
+        test_dataset['X'] = all_X
+        test_dataset['y'] = all_y
+        test_dataset['w'] = all_w
+        test_dataset['ids'] = all_ids
 
         return train_dataset, test_dataset
+
+    @staticmethod
+    def write_data_to_disk(
+            data_dir,
+            basename,
+            X=None,
+            y=None,
+            w=None,
+            ids=None):
+
+        out_X = "%s-X.joblib" % basename
+        save_to_disk(X, os.path.join(data_dir, out_X))
+
+        out_y = "%s-y.joblib" % basename
+        save_to_disk(y, os.path.join(data_dir, out_y))
+
+        out_w = "%s-seg.joblib" % basename
+        save_to_disk(w, os.path.join(data_dir, out_w))
+
+        out_ids = "%s-y1h.joblib" % basename
+        save_to_disk(ids, os.path.join(data_dir, out_ids))
+
+        # note that this corresponds to the _construct_metadata column order
+        return {'basename': basename, 'X': out_X, 'y': out_y, 'w': out_w, 'ids': out_ids}
 
     def get_shards(self, file_list, shard_size):
 
@@ -198,7 +231,7 @@ class MeshLoader(PointcloudLoader):
         :param shard: ndarray, point cloud raw data
         :return: graph object for each sample
         """
-        cluster_num = 50  # min_node in this folder is 13 precomputed
+        cluster_num = NUM_CLUSTER  # min_node in this folder is 13 precomputed
         clusterer = sc.AgglomerativeClustering(n_clusters=cluster_num)
 
         X = []  # to save the graph object
@@ -251,7 +284,7 @@ class MeshLoader(PointcloudLoader):
 
         return adj_list, adj_matrix
 
-    def load_back_from_disk(self, data_dir, istrain=True):
+    def load_back_from_disk(self, data_dir):
         """
         load data backas Train/test from disk
         :return: Train/Test STDiskDataset
@@ -264,11 +297,10 @@ class MeshLoader(PointcloudLoader):
         all_X, all_y, all_w, all_ids = [], [], [], []
 
         for _, row in enumerate(metadata_rows):
-            X = np.array(load_from_disk(os.path.join(data_dir, row[3])))
-            ids = np.array(load_from_disk(os.path.join(data_dir, row[2])))
-            # These columns may be missing is the dataset is unlabelled.
-            y = np.array(load_from_disk(os.path.join(data_dir, row[4])))
-            w = np.array(load_from_disk(os.path.join(data_dir, row[5])))
+            X = np.array(load_from_disk(os.path.join(data_dir, row['X'])))
+            ids = np.array(load_from_disk(os.path.join(data_dir, row['ids'])))
+            y = np.array(load_from_disk(os.path.join(data_dir, row['y'])))
+            w = np.array(load_from_disk(os.path.join(data_dir, row['w'])))
 
             """ stack to list"""
             all_X.append(X)
@@ -277,20 +309,19 @@ class MeshLoader(PointcloudLoader):
             all_ids.append(ids)
 
         """ return a Dataset contains all X, y, w, ids"""
-        if istrain:
-            cut = TRAIN_NUM
-        else:
-            cut = TEST_NUM
+
         all_X = np.concatenate(all_X)
         all_y = np.squeeze(np.concatenate(all_y))
         all_w = np.squeeze(np.concatenate(all_w))
         all_ids = np.squeeze(np.concatenate(all_ids))
         assert all_X.shape[0] == all_y.shape[0] == all_w.shape[0] == all_ids.shape[0]
 
-        dataset = STDiskDataset.from_numpy(all_X[:cut], all_y[:cut], all_w[:cut], all_ids[:cut],
-                                           tasks=self.tasks,
-                                           n_classes=self.n_classes,
-                                           data_dir=data_dir)
+        # create output dataset
+        dataset = dict()
+        dataset['X'] = all_X
+        dataset['y'] = all_y
+        dataset['w'] = all_w
+        dataset['ids'] = all_ids
         return dataset
 
     def load(self):
@@ -305,20 +336,19 @@ class MeshLoader(PointcloudLoader):
             train_dir = os.path.join(self.processed_data_dir, 'train')
             test_dir = os.path.join(self.processed_data_dir, 'test')
 
-            train = self.load_back_from_disk(data_dir=train_dir, istrain=True)
-            test = self.load_back_from_disk(data_dir=test_dir, istrain=False)
+            train = self.load_back_from_disk(data_dir=train_dir)
+            test = self.load_back_from_disk(data_dir=test_dir)
 
             meta_data = pickle.load(open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'rb'))
             max_atom = meta_data[0]
 
         else:
             print("Loading and Featurizing Data.......")
-            # loader = dc.data.CSVLoader(
-            #     tasks=self.tasks, smiles_field=self.smiles_field, featurizer=self.Featurizer)
+
             train, test = self.featurize(shard_size=256)
 
             """max_atom is the max atom of molecule in all_dataset """
-            max_atom = self.find_max_atom(train)
+            max_atom = NUM_CLUSTER
             meta_data.append(max_atom)
             meta_data.extend(self.tasks)
             with open(os.path.join(self.processed_data_dir, 'meta.pkl'), 'wb') as f:

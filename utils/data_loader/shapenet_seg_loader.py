@@ -317,7 +317,7 @@ class ShapeNetLoader(PointcloudLoader):
             cut = TRAIN_NUM
         else:
             cut = TEST_NUM
-        all_X = np.vstack(all_X)
+        all_X = np.concatenate(all_X)
         all_y = np.squeeze(np.concatenate(all_y))
         all_seg = np.squeeze(np.vstack(all_seg))
         all_y_1h = np.squeeze(np.vstack(all_y_1h))

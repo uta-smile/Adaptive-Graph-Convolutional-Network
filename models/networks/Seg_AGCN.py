@@ -75,7 +75,7 @@ class SegAGCN(object):
 
         """backbone network"""
         self.graph_model.add(MLP(
-            n_filters_1,
+            64,
             MLP_hidden_dim,
             n_features,
             batch_size,
@@ -85,14 +85,14 @@ class SegAGCN(object):
             max_atom=self.max_atom,
         ))
 
-        self.graph_model.add(SGC_LL(n_filters_1, n_filters_1, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(128, 64, batch_size, K=K, activation='relu'))
         # self.graph_model.add(GraphPoolMol(batch_size))
-        self.graph_model.add(SGC_LL(n_filters_2, n_filters_1, batch_size, K=K, activation='relu'))
+        self.graph_model.add(SGC_LL(256, 128, batch_size, K=K, activation='relu'))
         self.graph_model.add(GraphPoolMol(batch_size))
 
         """classification network"""
         self.graph_model.add(
-            DenseMol(n_filters_4, n_filters_4, activation='relu'),
+            DenseMol(128, 256, activation='relu'),
             classifer=True,
         )
         # output layer for classification
@@ -101,25 +101,21 @@ class SegAGCN(object):
             classifer=True,
         )
         self.graph_model.add(
-            FCL(batch_size, output_dim=n_filters_4, input_dim=n_filters_4),
+            FCL(batch_size, output_dim=64, input_dim=128),
             classifer=True,
         )
         self.graph_model.add(
-            FCL(batch_size, output_dim=n_classes, input_dim=n_filters_4),
+            FCL(batch_size, output_dim=n_classes, input_dim=64),
             classifer=True,
         )
 
         """segmentation network"""
         self.graph_model.add(
-            SGC_LL(n_filters_3, n_filters_2, batch_size, K=K, activation='relu'),
+            SGC_LL(128, 256, batch_size, K=K, activation='relu'),
             segmentation=True,
         )
         self.graph_model.add(
-            SGC_LL(n_filters_4, n_filters_3, batch_size, K=K, activation='relu'),
-            segmentation=True,
-        )
-        self.graph_model.add(
-            SGC_LL(part_num, n_filters_4, batch_size, K=K, activation='relu'),
+            SGC_LL(part_num, 128, batch_size, K=K, activation='relu'),
             segmentation=True,
         )
         "create output tensor [batch_size, point_num, part_num]"
