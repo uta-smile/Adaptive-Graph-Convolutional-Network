@@ -94,7 +94,7 @@ class Point_MLPDenseAGCNResLap(Network):
     def construct_network(self):
         tf.set_random_seed(self.seed)
 
-        n_features = self.data['train'].get_raw_feature_n()
+        n_features = self.hyper_parameters['raw_feature_n']
         MLP_hidden_dim = self.hyper_parameters['MLP_hidden_dim']
         batch_size = self.hyper_parameters['batch_size']
         K = self.hyper_parameters['max_hop_K']

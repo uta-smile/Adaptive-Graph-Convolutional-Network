@@ -180,7 +180,7 @@ class PointcloudLoader(DataLoader):
         one_hot_labels[np.arange(len(shard)), y] = 1                    # set the on-hot
         return one_hot_labels, np.asarray(y).astype(np.int32)
 
-    def featurize_shard(self, shard, pc_dir=None):
+    def featurize_shard(self, shard, pc_dir=None, down_sample=False):
         # create graph object for each point cloud object
 
         """
@@ -206,28 +206,33 @@ class PointcloudLoader(DataLoader):
             # read original points and intensity
             P = np.vstack([data['x'], data['y'], data['z']]).T
             intensity = np.asarray(data['intensity']).T
+            if down_sample:
+                if P.shape[0] > cluster_num:
+                    # clustering on original cloud
+                    cluster_indicators = clusterer.fit_predict(P)  # labels of original points
+                    new_points, new_intensity = [], []
+                    for i in range(cluster_num):
+                        idx = np.where(cluster_indicators == i)
+                        coord = np.mean(P[idx], axis=0)
+                        intent = np.mean(intensity[idx], axis=0)
+                        new_points.append(coord)
+                        new_intensity.append(intent)
+                    new_PC = np.asarray(new_points).astype(np.float32)
+                    new_intentities = np.asarray(new_intensity).astype(np.float32)
+                else:
+                    # do not do clustering, use original points and intensity
+                    new_PC = P
+                    new_intentities = intensity
 
-            if P.shape[0] > cluster_num:
-                # clustering on original cloud
-                cluster_indicators = clusterer.fit_predict(P)  # labels of original points
-                new_points, new_intensity = [], []
-                for i in range(cluster_num):
-                    idx = np.where(cluster_indicators == i)
-                    coord = np.mean(P[idx], axis=0)
-                    intent = np.mean(intensity[idx], axis=0)
-                    new_points.append(coord)
-                    new_intensity.append(intent)
-                new_PC = np.asarray(new_points).astype(np.float32)
-                new_intentities = np.asarray(new_intensity).astype(np.float32)
+                # create graph on point cloud
+                node_features = np.hstack([new_PC, np.expand_dims(new_intentities, 1)])
+                adj_list, adj_matrix = self.get_adjacency(node_features)
+                X.append(Graph(node_features, adj_list, max_deg=cluster_num, min_deg=0))
             else:
-                # do not do clustering, use original points and intensity
-                new_PC = P
-                new_intentities = intensity
-
-            # create graph on point cloud
-            node_features = np.hstack([new_PC, np.expand_dims(new_intentities, 1)])
-            adj_list, adj_matrix = self.get_adjacency(node_features)
-            X.append(Graph(node_features, adj_list, max_deg=cluster_num, min_deg=0))
+                """use original samples"""
+                node_features = np.hstack([P, np.expand_dims(intensity, 1)])
+                adj_list, adj_matrix = self.get_adjacency(node_features)
+                X.append(Graph(node_features, adj_list, max_deg=node_features.shape[0], min_deg=0))
 
         return np.asarray(X), np.asarray([True] * len(X))
 
@@ -236,12 +241,14 @@ class PointcloudLoader(DataLoader):
         n_p = points.shape[0]
 
         # pre-learn the distance matrix, use mean as threshold to generate adjacency matrix, i.e. who connect who
-        sum_dist = []
+        all_dist = []
         for i in range(n_p):
             for j in range(i + 1):
-                sum_dist += [np.linalg.norm(points[i] - points[j])]
+                all_dist += [np.linalg.norm(points[i] - points[j])]
                 # input points are new points after clustering
-        d_lim = np.mean(sum_dist)
+        sparse_ratio = 0.1  # this ratio is to the percentage of points in matrix that finally has non-zero values
+        cut_off_idx = int(n_p * sparse_ratio)
+        d_lim = np.sort(all_dist)[-cut_off_idx]
 
         adj_matrix = np.zeros((n_p, n_p))
         adj_list = [[] for _ in range(n_p)]

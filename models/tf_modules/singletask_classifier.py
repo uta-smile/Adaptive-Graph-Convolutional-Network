@@ -85,7 +85,6 @@ class SingletaskGraphClassifier(Model):
                 # those two has one more tensor
                 self.L_op = self.model.get_laplacian()
 
-            self.learning_rate = learning_rate
             self.T = learning_rate_decay_time
             self.optimizer_type = optimizer_type
 
@@ -97,15 +96,20 @@ class SingletaskGraphClassifier(Model):
             self._save_path = os.path.join(logdir, 'model.ckpt')
 
             # setup the exponential decayed learning rate
-            learning_rate = tf.train.exponential_decay(self.learning_rate,
-                                                       self.global_step * batch_size, self.T, 0.7, staircase=True)
+            self.learning_rate = tf.train.exponential_decay(learning_rate,
+                                                            self.global_step * batch_size, self.T, 0.7, staircase=True)
 
-            learning_rate = tf.maximum(learning_rate, 0.00001)
+            self.learning_rate = tf.maximum(self.learning_rate, 0.00001)
+            self.lr_op = tf.summary.scalar('learning_rate', self.learning_rate)
             # construct train_op with decayed rate
-            self.train_op = tf.train.AdamOptimizer(learning_rate).minimize(self.loss_op, global_step=self.global_step)
+            self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss_op,
+                                                                                global_step=self.global_step)
             # initialize the graph
             self.init_fn = tf.global_variables_initializer()
             self.sess.run(self.init_fn)
+
+            self.train_writer = tf.summary.FileWriter(logdir + '/train', self.sess.graph)
+            self.test_writer = tf.summary.FileWriter(logdir + '/test')
 
     def _build(self):
         # Create target inputs
@@ -212,18 +216,22 @@ class SingletaskGraphClassifier(Model):
                         if type(self.model).__name__ in ['ResidualGraphMolResLap',
                                                          'DenseConnectedGraphResLap',
                                                          ]:
-                            _, loss_val, res_L, res_W, L = self.sess.run(
-                                [self.train_op, self.loss_op, self.res_L_op, self.res_W_op, self.L_op],
+                            _, loss_val, res_L, res_W, L, lr = self.sess.run(
+                                [self.train_op, self.loss_op, self.res_L_op, self.res_W_op, self.L_op, self.lr_op
+                                 ],
                                 feed_dict=self.construct_feed_dict(X_b, y_b=y_b, w_b=w_b))
                         else:
-                            _, loss_val, res_L, res_W = self.sess.run(
-                                [self.train_op, self.loss_op, self.res_L_op, self.res_W_op],
+                            _, loss_val, res_L, res_W, lr = self.sess.run(
+                                [self.train_op, self.loss_op, self.res_L_op, self.res_W_op, self.lr_op],
                                 feed_dict=self.construct_feed_dict(X_b, y_b=y_b, w_b=w_b))
-                        tf.summary.scalar('loss', loss_val)
 
                         if batch_num % 10 == 0:
                             print('loss = ' + str(loss_val))
+                            # print('learning rate = {}'.format(str(lr)))
+
                             loss_curve.append(loss_val)
+                            # self.train_writer.add_summary(loss_val, epoch)
+                            # self.train_writer.add_summary(lr, epoch)
                             # if epoch == 10:
                             # self.watch_batch(X_b, ids_b, res_L, L)
 
