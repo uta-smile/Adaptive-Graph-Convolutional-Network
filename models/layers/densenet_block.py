@@ -91,7 +91,7 @@ class DenseBlockEnd(Layer):
         )
 
         # activation
-        activated_nodes = map(lambda s: self.activation(s), node_features)
+        activated_nodes = list(map(lambda s: self.activation(s), node_features))
 
         return activated_nodes
 
@@ -109,19 +109,19 @@ class DenseBlockEnd(Layer):
             # x_res = residual_features[graph_id]
             max_atom = self.max_atom
             "x_indices shared by this graph (including from previous layers)"
-            x_indices = tf.gather(mol_slice, tf.pack([graph_id]))  # n_atom for this mol * feature number (,2) -> shape
-            x = tf.slice(x, tf.pack([0, 0]), tf.reduce_sum(x_indices, axis=0))  # M x Fin, start=[0,0] size = [M, -1]
+            x_indices = tf.gather(mol_slice, tf.constant([graph_id]))  # n_atom for this mol * feature number (,2) -> shape
+            x = tf.slice(x, tf.constant([0, 0]), tf.reduce_sum(x_indices, axis=0))  # M x Fin, start=[0,0] size = [M, -1]
 
             # sum up in-block activations
             for layer_id in range(len(self.inblock_activations_dim)):
                 x_res = self.inblock_activations[layer_id * self.batch_size + graph_id]
-                x_res = tf.slice(x_res, tf.pack([0, 0]), tf.reduce_sum(x_indices, axis=0))
+                x_res = tf.slice(x_res, tf.constant([0, 0]), tf.reduce_sum(x_indices, axis=0))
                 x += tf.multiply(tf.matmul(x_res, self.vars['weight_inblock'][layer_id]), beta1)
 
             # sum up out-of-block activations
             for b_id in range(len(self.preceding_blocks_dim)):
                 x_res = self.preceding_blocks[b_id * self.batch_size + graph_id]
-                x_res = tf.slice(x_res, tf.pack([0, 0]), tf.reduce_sum(x_indices, axis=0))
+                x_res = tf.slice(x_res, tf.constant([0, 0]), tf.reduce_sum(x_indices, axis=0))
                 x += tf.multiply(tf.matmul(x_res, self.vars['weight_outblock'][b_id]), beta2)
 
             M = tf.squeeze(tf.gather(tf.transpose(x_indices, perm=[1, 0]), 0))

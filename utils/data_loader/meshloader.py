@@ -28,8 +28,8 @@ TRAIN_FILES = pd.getDataFiles( \
     os.path.join(BASE_DIR, 'data/3Dmesh/modelnet40_ply_hdf5_2048/train_files.txt'))
 TEST_FILES = pd.getDataFiles(\
     os.path.join(BASE_DIR, 'data/3Dmesh/modelnet40_ply_hdf5_2048/test_files.txt'))
-TRAIN_FILES = map(lambda x: x.split('/')[-1], TRAIN_FILES)
-TEST_FILES = map(lambda x: x.split('/')[-1], TEST_FILES)
+TRAIN_FILES = list(map(lambda x: x.split('/')[-1], TRAIN_FILES))
+TEST_FILES = list(map(lambda x: x.split('/')[-1], TEST_FILES))
 
 NUM_POINT = 1024
 

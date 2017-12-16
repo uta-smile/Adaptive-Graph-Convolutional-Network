@@ -121,10 +121,10 @@ class SGC_LL_Reslap(SGC_LL):
             L = Laplacian[mol_id]  # max_atom x max_atom
             max_atom = L.get_shape().as_list()[0]  # dtype=int
 
-            x_indices = tf.gather(mol_slice, tf.pack([mol_id]))  # n_atom for this mol * feature number (,2) -> shape
-            L_indices = tf.gather(L_slice, tf.pack([mol_id]))
-            x = tf.slice(x, tf.pack([0, 0]), tf.reduce_sum(x_indices, axis=0))  # M x Fin, start=[0,0] size = [M, -1]
-            LL = tf.slice(L, tf.pack([0, 0]), tf.reduce_sum(L_indices, axis=0))  # M x M
+            x_indices = tf.gather(mol_slice, tf.constant([mol_id]))  # n_atom for this mol * feature number (,2) -> shape
+            L_indices = tf.gather(L_slice, tf.constant([mol_id]))
+            x = tf.slice(x, tf.constant([0, 0]), tf.reduce_sum(x_indices, axis=0))  # M x Fin, start=[0,0] size = [M, -1]
+            LL = tf.slice(L, tf.constant([0, 0]), tf.reduce_sum(L_indices, axis=0))  # M x M
 
             # LL = tf.clip_by_average_norm(LL, 1.0)
             # M, Fin = x.get_shape().as_list()[0], x.get_shape().as_list()[1]
@@ -202,7 +202,7 @@ class SGC_LL_Reslap(SGC_LL):
 
             def concat(x, x_):
                 x_ = tf.expand_dims(x_, 0)  # 1 x M x Fin
-                return tf.concat(0, [x, x_])  # K x M x Fin
+                return tf.stack([x, x_])  # K x M x Fin
 
             # Chebyshev recurrence T_k(x) = 2x T_{k-1}(x) - T_{k-2}(x)
             if K > 1:

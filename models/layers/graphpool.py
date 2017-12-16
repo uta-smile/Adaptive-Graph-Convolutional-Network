@@ -82,10 +82,10 @@ class GraphPoolMol(Layer):
             # M, Fin = x.get_shape()  # x=> (M, Fin)
             # M, Fin = int(M), int(Fin)  # M-> n_atom for this mol, Fin-> num of feature of input graph
 
-            x_indices = tf.gather(mol_slice, tf.pack([mol_id]))  # n_atom for this mol * feature number (,2) -> shape
-            L_indices = tf.gather(L_slice, tf.pack([mol_id]))  # get the shape info for laplacian
-            x = tf.slice(x, tf.pack([0, 0]), tf.reduce_sum(x_indices, axis=0))  # M x Fin, start=[0,0] size = [M, -1]
-            L = tf.slice(L, tf.pack([0, 0]), tf.reduce_sum(L_indices, axis=0))  # M x M
+            x_indices = tf.gather(mol_slice, tf.constant([mol_id]))  # n_atom for this mol * feature number (,2) -> shape
+            L_indices = tf.gather(L_slice, tf.constant([mol_id]))  # get the shape info for laplacian
+            x = tf.slice(x, tf.constant([0, 0]), tf.reduce_sum(x_indices, axis=0))  # M x Fin, start=[0,0] size = [M, -1]
+            L = tf.slice(L, tf.constant([0, 0]), tf.reduce_sum(L_indices, axis=0))  # M x M
             M = tf.squeeze(tf.gather(tf.transpose(x_indices, perm=[1, 0]), 0))
 
             def func(x, L):

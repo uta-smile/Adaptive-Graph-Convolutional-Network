@@ -67,9 +67,9 @@ class GraphGatherMol(Layer):
         mol_feature = []
         for mol_id in range(batch_size):
             x = atoms[mol_id]
-            x_indices = tf.gather(mol_slice, tf.pack([mol_id]))  # n_atom for this mol * feature number (,2) -> shape
-            # x = tf.slice(x, tf.pack([0, 0]), x_indices)  # n_atom * feature_n, start=[0,0] size = [atom_n, -1]
-            x = tf.slice(x, tf.pack([0, 0]), tf.reduce_sum(x_indices, axis=0))
+            x_indices = tf.gather(mol_slice, tf.constant([mol_id]))  # n_atom for this mol * feature number (,2) -> shape
+            # x = tf.slice(x, tf.constant([0, 0]), x_indices)  # n_atom * feature_n, start=[0,0] size = [atom_n, -1]
+            x = tf.slice(x, tf.constant([0, 0]), tf.reduce_sum(x_indices, axis=0))
 
             f_mol = tf.reduce_sum(x, 0)     # along row axis sum
             mol_feature.append(f_mol)

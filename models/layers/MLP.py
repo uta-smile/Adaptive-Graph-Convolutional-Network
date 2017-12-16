@@ -70,8 +70,8 @@ class MLP(Layer):
         new_x = []
         for mol_id in range(self.batch_size):
             x = node_features[mol_id]  # max_atom x Fin
-            x_indices = tf.gather(mol_slice, tf.pack([mol_id]))  # n_atom for this mol * feature number (,2) -> shape
-            x = tf.slice(x, tf.pack([0, 0]), tf.reduce_sum(x_indices, axis=0))  # M x Fin, start=[0,0] size = [M, -1]
+            x_indices = tf.gather(mol_slice, tf.constant([mol_id]))  # n_atom for this mol * feature number (,2) -> shape
+            x = tf.slice(x, tf.constant([0, 0]), tf.reduce_sum(x_indices, axis=0))  # M x Fin, start=[0,0] size = [M, -1]
 
             for op_id in range(len(self.vars['weight'])):
                 x = tf.matmul(x, self.vars['weight'][op_id]) + self.vars['bias'][op_id]
