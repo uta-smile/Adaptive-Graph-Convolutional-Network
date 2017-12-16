@@ -9,3 +9,4 @@ from AGCN.models.tf_modules.multitask_regressor import MultitaskGraphRegressor
 from AGCN.models.tf_modules.singletask_classifier import SingletaskGraphClassifier
 from AGCN.models.tf_modules.seg_graph import SegmentationGraph
 from AGCN.models.tf_modules.segmentation_module import PartSegmentation
+

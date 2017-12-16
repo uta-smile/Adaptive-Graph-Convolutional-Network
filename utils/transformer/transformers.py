@@ -11,7 +11,7 @@ import numpy as np
 import time
 import tensorflow as tf
 
-from AGCN.utils.datatset import NumpyDataset
+from AGCN.utils.dataset import NumpyDataset
 
 
 def undo_transforms(y, transformers):

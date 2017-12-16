@@ -10,7 +10,7 @@ import shutil
 import pandas as pd
 import random
 
-from AGCN.utils.datatset import Dataset
+from AGCN.utils.dataset import Dataset
 from AGCN.utils.save import save_to_disk, load_from_disk, log
 
 

@@ -4,14 +4,15 @@ from __future__ import division
 from __future__ import unicode_literals
 
 import os
-import cPickle
+# import cPickle
+import pickle
 import numpy as np
 from os import listdir
 from PIL import Image
 import sklearn.cluster as sc
 import gzip
 
-from AGCN.utils.datatset import DiskDataset
+from AGCN.utils.dataset import DiskDataset
 from AGCN.utils.data_loader import DataLoader, PointcloudLoader
 from AGCN.models import Graph
 
@@ -122,7 +123,7 @@ class ImageCIFARLoader(DataLoader):
             for fid, f in enumerate(files_list):
                 f_dir = os.path.join(folder, f)
                 with open(f_dir, 'rb') as fo:
-                    batch = cPickle.load(fo)
+                    batch = pickle.load(fo)
                     data_batch_l.append(batch['data'])
                     label_batch_l.append(batch['labels'])
             # stack into one single array

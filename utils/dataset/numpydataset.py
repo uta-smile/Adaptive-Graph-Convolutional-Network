@@ -4,7 +4,7 @@ from __future__ import division
 from __future__ import unicode_literals
 
 import numpy as np
-from AGCN.utils.datatset import Dataset
+from AGCN.utils.dataset import Dataset
 
 
 class NumpyDataset(Dataset):

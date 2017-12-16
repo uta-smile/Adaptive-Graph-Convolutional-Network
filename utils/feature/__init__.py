@@ -1,3 +1,3 @@
-from circular_fingerprint import CircularFingerprint
-from featurizer import Featurizer
-from graph_features import ConvMolFeaturizer
+from AGCN.utils.feature.circular_fingerprint import CircularFingerprint
+from AGCN.utils.feature.featurizer import Featurizer
+from AGCN.utils.feature.graph_features import ConvMolFeaturizer

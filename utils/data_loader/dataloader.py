@@ -9,7 +9,7 @@ import pickle
 
 from AGCN.utils.feature import CircularFingerprint, ConvMolFeaturizer
 from AGCN.utils.transformer import BalancingTransformer, NormalizationTransformer
-from AGCN.utils.datatset import DiskDataset
+from AGCN.utils.dataset import DiskDataset
 from AGCN.utils.splitter import IndexSplitter, ScaffoldSplitter, RandomSplitter
 from AGCN.utils.save import load_from_disk
 

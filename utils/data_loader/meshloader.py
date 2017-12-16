@@ -17,7 +17,7 @@ from AGCN.utils.data_loader import DataLoader, PointcloudLoader
 from AGCN.models import Graph
 
 from AGCN.utils.transformer import BalancingTransformer, NormalizationTransformer
-from AGCN.utils.datatset import DiskDataset, TrainTestDataset, STDiskDataset
+from AGCN.utils.dataset import DiskDataset, TrainTestDataset, STDiskDataset
 from AGCN.utils.splitter import IndexSplitter, ScaffoldSplitter, RandomSplitter
 from AGCN.utils import provider as pd
 from AGCN.utils.save import save_to_disk, load_from_disk

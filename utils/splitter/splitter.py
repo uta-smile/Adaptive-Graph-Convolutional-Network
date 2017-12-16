@@ -4,7 +4,7 @@ from __future__ import division
 from __future__ import unicode_literals
 
 import tempfile
-from AGCN.utils.datatset import NumpyDataset
+from AGCN.utils.dataset import NumpyDataset
 from AGCN.utils.save import log
 
 
