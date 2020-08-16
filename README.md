@@ -1,4 +1,5 @@
 Adaptive-Graph-Convolutional-Network 
+
 ArXiv: https://arxiv.org/abs/1801.03226
 
 Citation:
